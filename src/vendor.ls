@@ -6,4 +6,21 @@ golang.org/x/net/context
 # https://godoc.org/github.com/google/subcommands
 github.com/google/subcommands
 
+# Package ftp implements a FTP client as described in RFC 959.
+# https://godoc.org/github.com/jlaffaye/ftp
+github.com/jlaffaye/ftp
+
+# Package bytefmt contains helper methods and constants for converting to and from a human-readable byte format.
+# https://godoc.org/github.com/pivotal-golang/bytefmt
+github.com/pivotal-golang/bytefmt
+
+# Package charmap provides simple character encodings such as IBM Code Page 437 and Windows 1252.
+# https://godoc.org/golang.org/x/text/encoding/charmap
+golang.org/x/text/encoding/charmap
+
+# Package transform provides reader and writer wrappers that transform the bytes passing through as well as various transformations.
+# https://godoc.org/golang.org/x/text/transform
+golang.org/x/text/transform
+
+
 ### Below some alternatives for consideration ###
