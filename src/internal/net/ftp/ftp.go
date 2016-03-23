@@ -13,18 +13,17 @@ import (
 )
 
 type Filer interface {
+	io.Reader
 	Name() string
 	Size() int64
 	Time() time.Time
-	Body() io.Reader
 	Unzip() (io.ReadCloser, error)
 }
 
 type file struct {
+	r    *bytes.Reader
 	name string
-	size int64
 	time time.Time
-	data []byte
 }
 
 func (f file) Name() string {
@@ -32,28 +31,28 @@ func (f file) Name() string {
 }
 
 func (f file) Size() int64 {
-	return f.size
+	return f.r.Size()
 }
 
 func (f file) Time() time.Time {
 	return f.time
 }
 
-func (f file) Body() io.Reader {
-	return bytes.NewReader(f.data)
+func (f file) Read(b []byte) (int, error) {
+	return f.r.Read(b)
 }
 
 func (f file) Unzip() (io.ReadCloser, error) {
-	zip, err := zip.NewReader(bytes.NewReader(f.data), f.size)
+	z, err := zip.NewReader(f.r, f.r.Size())
 	if err != nil {
 		return nil, err
 	}
 
-	if len(zip.File) == 0 {
+	if len(z.File) == 0 {
 		return nil, fmt.Errorf("zip: archive is empty: %s", "unreachable")
 	}
 
-	return zip.File[0].Open()
+	return z.File[0].Open()
 }
 
 func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struct {
@@ -130,12 +129,11 @@ func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struc
 
 			pipe <- makeResult(
 				file{
+					r:    bytes.NewReader(data),
 					name: v.Name,
-					size: int64(v.Size),
 					time: v.Time,
-					data: data,
 				},
-				err,
+				nil,
 			)
 
 			if !cleanup {
