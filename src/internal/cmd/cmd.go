@@ -6,5 +6,5 @@ import (
 
 // Register registers commands in subcommands
 func Register() {
-	subcommands.Register(&cmdAVE{}, "")
+	subcommands.Register(ave, "")
 }
