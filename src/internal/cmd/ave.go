@@ -20,12 +20,12 @@ import (
 )
 
 const (
-	capMapFile = 3
-	capMapShop = 3000
-	capMapDrug = 200000
-	capMapProp = capMapShop
+	capFile = 3
+	capShop = 3000
+	capDrug = 200000
+	capProp = capShop
 
-	magicConst = "АВЕ"
+	aveHead = "АВЕ" // magic const
 )
 
 var (
@@ -36,10 +36,10 @@ var (
 	walkWay = []string{fileApt, fileTov, fileOst} // strong order files
 
 	ave = &cmdAVE{
-		fileMap: make(map[string]ftp.Filer, capMapFile),
-		shopMap: make(map[string]shop, capMapShop),
-		drugMap: make(map[string]drug, capMapDrug),
-		propMap: make(map[string][]prop, capMapProp),
+		mapFile: make(map[string]ftp.Filer, capFile),
+		mapShop: make(map[string]shop, capShop),
+		mapDrug: make(map[string]drug, capDrug),
+		mapProp: make(map[string][]prop, capProp),
 	}
 )
 
@@ -69,12 +69,12 @@ type price struct {
 }
 
 type cmdAVE struct {
-	addrFTP string
-	addrWEB string
-	fileMap map[string]ftp.Filer
-	shopMap map[string]shop
-	drugMap map[string]drug
-	propMap map[string][]prop
+	flagFTP string
+	flagWEB string
+	mapFile map[string]ftp.Filer
+	mapShop map[string]shop
+	mapDrug map[string]drug
+	mapProp map[string][]prop
 }
 
 // Name returns the name of the command.
@@ -94,8 +94,8 @@ func (c *cmdAVE) Usage() string {
 
 // SetFlags adds the flags for this command to the specified set.
 func (c *cmdAVE) SetFlags(f *flag.FlagSet) {
-	f.StringVar(&c.addrFTP, "ftp", "", "network address for FTP server 'ftp://user:pass@host:port'")
-	f.StringVar(&c.addrWEB, "web", "", "network address for WEB server 'scheme://domain/method'")
+	f.StringVar(&c.flagFTP, "ftp", "", "network address for FTP server 'ftp://user:pass@host:port'")
+	f.StringVar(&c.flagWEB, "web", "", "network address for WEB server 'scheme://domain/method'")
 }
 
 // Execute executes the command and returns an ExitStatus.
@@ -122,7 +122,7 @@ func (c *cmdAVE) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 
 func (c *cmdAVE) downloadZIPFiles() error {
 	ftpMiner := ftp.MineFiles(
-		c.addrFTP,
+		c.flagFTP,
 		func(name string) bool {
 			return strings.Contains(strings.ToLower(name), timeFmt)
 		},
@@ -133,7 +133,7 @@ func (c *cmdAVE) downloadZIPFiles() error {
 		if v.Error != nil {
 			return v.Error
 		}
-		c.fileMap[v.File.Name()] = v.File
+		c.mapFile[v.File.Name()] = v.File
 	}
 
 	return nil
@@ -142,7 +142,7 @@ func (c *cmdAVE) downloadZIPFiles() error {
 func (c *cmdAVE) transformCSVFiles() error {
 	for i := range walkWay {
 		s := walkWay[i]
-		f, ok := c.fileMap[s]
+		f, ok := c.mapFile[s]
 		if !ok {
 			return fmt.Errorf("cmd: ave: file not found '%v'", s)
 		}
@@ -181,7 +181,7 @@ func (c *cmdAVE) parseRecordApt(r []string) {
 	s := shop{
 		ID:   r[0],
 		Name: r[1],
-		Head: magicConst,
+		Head: aveHead,
 		Addr: r[2],
 	}
 
@@ -190,7 +190,7 @@ func (c *cmdAVE) parseRecordApt(r []string) {
 		s.Name = s.Head
 	}
 
-	c.shopMap[s.ID] = s
+	c.mapShop[s.ID] = s
 }
 
 // cvs scheme (tov): [0]code [1]barname [2]brand [3]grpname [4]grpcode
@@ -200,17 +200,17 @@ func (c *cmdAVE) parseRecordTov(r []string) {
 		Name: r[1],
 	}
 
-	c.drugMap[d.ID] = d
+	c.mapDrug[d.ID] = d
 }
 
 // cvs scheme (ost): [0]codegood [1]codeapt [2]qnt [3]pricesale
 func (c *cmdAVE) parseRecordOst(r []string) {
-	s, ok := c.shopMap[r[1]]
+	s, ok := c.mapShop[r[1]]
 	if !ok {
 		return
 	}
 
-	d, ok := c.drugMap[r[0]]
+	d, ok := c.mapDrug[r[0]]
 	if !ok {
 		return
 	}
@@ -222,7 +222,7 @@ func (c *cmdAVE) parseRecordOst(r []string) {
 		Price: mustParseFloat64(r[3]),
 	}
 
-	c.propMap[s.ID] = append(c.propMap[s.ID], p)
+	c.mapProp[s.ID] = append(c.mapProp[s.ID], p)
 }
 
 func mustParseFloat64(s string) float64 {
@@ -232,9 +232,9 @@ func mustParseFloat64(s string) float64 {
 
 func (c *cmdAVE) prepareJSONFiles() error {
 	t := time.Now()
-	for k, v := range c.propMap {
+	for k, v := range c.mapProp {
 		p := price{
-			Meta: c.shopMap[k],
+			Meta: c.mapShop[k],
 			Data: v,
 		}
 
@@ -247,7 +247,7 @@ func (c *cmdAVE) prepareJSONFiles() error {
 			return err
 		}
 	}
-	fmt.Println(len(c.shopMap), len(c.drugMap), len(c.propMap))
+	fmt.Println(len(c.mapShop), len(c.mapDrug), len(c.mapProp))
 	fmt.Println(time.Since(t))
 	return nil
 }
