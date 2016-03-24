@@ -5,7 +5,7 @@ import (
 	"io"
 )
 
-func MineRecords(f io.Reader, comma rune) <-chan struct {
+func MineRecords(f io.Reader, comma rune, skip int) <-chan struct {
 	Record []string
 	Error  error
 } {
@@ -22,11 +22,16 @@ func MineRecords(f io.Reader, comma rune) <-chan struct {
 
 		var rec []string
 		var err error
+		var n int
 		for {
 			if rec, err = r.Read(); err == io.EOF {
 				break
 			} else if err != nil {
 				pipe <- makeRecord(nil, err)
+				continue
+			}
+			n++
+			if n < skip {
 				continue
 			}
 			pipe <- makeRecord(rec, nil)
@@ -41,8 +46,8 @@ func makeRecord(rec []string, err error) struct {
 	Error  error
 } {
 	return struct {
-		rec []string
-		err error
+		Record []string
+		Error  error
 	}{
 		rec,
 		err,
