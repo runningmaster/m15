@@ -13,7 +13,6 @@ import (
 )
 
 type Filer interface {
-	io.Reader
 	Name() string
 	Size() int64
 	Time() time.Time
@@ -36,10 +35,6 @@ func (f file) Size() int64 {
 
 func (f file) Time() time.Time {
 	return f.time
-}
-
-func (f file) Read(b []byte) (int, error) {
-	return f.r.Read(b)
 }
 
 func (f file) Unzip() (io.ReadCloser, error) {
@@ -67,21 +62,22 @@ func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struc
 	go func() {
 		defer close(pipe)
 
-		var u *url.URL
-		var err error
-		if u, err = url.Parse(addr); err != nil {
+		u, err := url.Parse(addr)
+		if err != nil {
 			pipe <- makeResult(nil, err)
 			return
 		}
 
-		var user, pass string
-		if u.User != nil {
-			user = u.User.Username()
-			pass, _ = u.User.Password()
+		if u.User == nil {
+			pipe <- makeResult(nil, fmt.Errorf("ftp: user must be defined"))
+			return
 		}
 
-		var c *ftp.ServerConn
-		if c, err = ftp.Connect(u.Host); err != nil {
+		user := u.User.Username()
+		pass, _ := u.User.Password()
+
+		c, err := ftp.Connect(u.Host)
+		if err != nil {
 			pipe <- makeResult(nil, err)
 			return
 		}
@@ -92,8 +88,8 @@ func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struc
 			return
 		}
 
-		var list []*ftp.Entry
-		if list, err = c.List("."); err != nil {
+		list, err := c.List(".")
+		if err != nil {
 			pipe <- makeResult(nil, err)
 			return
 		}
@@ -108,20 +104,25 @@ func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struc
 				continue
 			}
 
-			var body io.ReadCloser
-			if body, err = c.Retr(v.Name); err != nil {
+			body, err := c.Retr(v.Name)
+			if err != nil {
 				pipe <- makeResult(nil, err)
 				return
 			}
 
-			var data []byte
-			if data, err = ioutil.ReadAll(body); err != nil {
+			data, err := ioutil.ReadAll(body)
+			if err != nil {
 				pipe <- makeResult(nil, err)
 				return
 			}
 
-			if body != nil {
-				if err = body.Close(); err != nil {
+			if err = body.Close(); err != nil {
+				pipe <- makeResult(nil, err)
+				return
+			}
+
+			if cleanup {
+				if err = c.Delete(v.Name); err != nil {
 					pipe <- makeResult(nil, err)
 					return
 				}
@@ -135,15 +136,6 @@ func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struc
 				},
 				nil,
 			)
-
-			if !cleanup {
-				continue
-			}
-
-			if err = c.Delete(v.Name); err != nil {
-				pipe <- makeResult(nil, err)
-				return
-			}
 		}
 	}()
 
