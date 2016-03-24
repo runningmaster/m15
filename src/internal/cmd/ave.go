@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/google/subcommands"
 	"github.com/pivotal-golang/bytefmt"
 	"golang.org/x/net/context"
+	"golang.org/x/net/context/ctxhttp"
 )
 
 const (
@@ -40,6 +43,13 @@ var (
 		mapShop: make(map[string]shop, capShop),
 		mapDrug: make(map[string]drug, capDrug),
 		mapProp: make(map[string][]prop, capProp),
+		httpCli: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true, // workaround
+				},
+			},
+		},
 	}
 )
 
@@ -75,6 +85,8 @@ type cmdAVE struct {
 	mapShop map[string]shop
 	mapDrug map[string]drug
 	mapProp map[string][]prop
+	httpCtx context.Context
+	httpCli *http.Client
 }
 
 // Name returns the name of the command.
@@ -101,23 +113,22 @@ func (c *cmdAVE) SetFlags(f *flag.FlagSet) {
 // Execute executes the command and returns an ExitStatus.
 func (c *cmdAVE) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
 	var err error
-
+	// fail fast
 	if err = c.downloadZIPFiles(); err != nil {
-		fmt.Println(err)
+		goto Fail
 	}
-
 	if err = c.transformCSVFiles(); err != nil {
-		fmt.Println(err)
+		goto Fail
 	}
-
 	if err = c.prepareJSONFiles(); err != nil {
-		fmt.Println(err)
+		goto Fail
 	}
 
-	if err != nil {
-		return subcommands.ExitFailure
-	}
 	return subcommands.ExitSuccess
+
+Fail:
+	fmt.Println(err)
+	return subcommands.ExitFailure
 }
 
 func (c *cmdAVE) downloadZIPFiles() error {
@@ -250,4 +261,11 @@ func (c *cmdAVE) prepareJSONFiles() error {
 	fmt.Println(len(c.mapShop), len(c.mapDrug), len(c.mapProp))
 	fmt.Println(time.Since(t))
 	return nil
+}
+
+func (c *cmdAVE) ping(url string) error {
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	cli := c.httpCli
+	_, err := ctxhttp.Get(ctx, cli, url)
+	return err
 }
