@@ -26,5 +26,8 @@ golang.org/x/text/encoding/charmap
 # https://godoc.org/golang.org/x/text/transform
 golang.org/x/text/transform
 
+# Package gzip implements reading and writing of gzip format compressed files, as specified in RFC 1952.
+# https://godoc.org/github.com/klauspost/compress/gzip
+github.com/klauspost/compress/gzip
 
 ### Below some alternatives for consideration ###
