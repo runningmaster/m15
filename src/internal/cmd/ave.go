@@ -177,13 +177,9 @@ func (c *cmdAVE) transformCSVs() error {
 			return err
 		}
 
-		count_all := 0
-		count_err := 0
 		cvsMiner := csv.MineRecords(txt.Win1251ToUTF8(rc), ';', 1)
 		for v := range cvsMiner {
-			count_all++
 			if v.Error != nil {
-				count_err++
 				continue
 			}
 			switch {

@@ -12,6 +12,7 @@ import (
 	"github.com/jlaffaye/ftp"
 )
 
+// Filer is representation for file from FTP
 type Filer interface {
 	Name() string
 	Size() int64
@@ -50,6 +51,57 @@ func (f file) Unzip() (io.ReadCloser, error) {
 	return z.File[0].Open()
 }
 
+func connect(addr string) (*ftp.ServerConn, error) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	if u.User == nil {
+		return nil, fmt.Errorf("ftp: user must be defined")
+	}
+
+	user := u.User.Username()
+	pass, _ := u.User.Password()
+
+	c, err := ftp.Connect(u.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = c.Login(user, pass); err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
+func skipFile(e *ftp.Entry, nameOK func(string) bool) bool {
+	badType := e.Type != ftp.EntryTypeFile
+	badSize := e.Size <= 0
+	badName := nameOK != nil && !nameOK(e.Name)
+	return badType || badSize || badName
+}
+
+func readFile(c *ftp.ServerConn, name string) ([]byte, error) {
+	body, err := c.Retr(name)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := ioutil.ReadAll(body)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = body.Close(); err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+// MineFiles allows to work with files in a pipe style
 func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struct {
 	File  Filer
 	Error error
@@ -62,31 +114,12 @@ func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struc
 	go func() {
 		defer close(pipe)
 
-		u, err := url.Parse(addr)
-		if err != nil {
-			pipe <- makeResult(nil, err)
-			return
-		}
-
-		if u.User == nil {
-			pipe <- makeResult(nil, fmt.Errorf("ftp: user must be defined"))
-			return
-		}
-
-		user := u.User.Username()
-		pass, _ := u.User.Password()
-
-		c, err := ftp.Connect(u.Host)
+		c, err := connect(addr)
 		if err != nil {
 			pipe <- makeResult(nil, err)
 			return
 		}
 		defer func() { _ = c.Quit() }()
-
-		if err = c.Login(user, pass); err != nil {
-			pipe <- makeResult(nil, err)
-			return
-		}
 
 		list, err := c.List(".")
 		if err != nil {
@@ -95,28 +128,13 @@ func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struc
 		}
 
 		var v *ftp.Entry
-		var badType, badSize, badName bool
 		for _, v = range list {
-			badType = v.Type != ftp.EntryTypeFile
-			badSize = v.Size <= 0
-			badName = nameOK != nil && !nameOK(v.Name)
-			if badType || badSize || badName {
+			if skipFile(v, nameOK) {
 				continue
 			}
 
-			body, err := c.Retr(v.Name)
+			data, err := readFile(c, v.Name)
 			if err != nil {
-				pipe <- makeResult(nil, err)
-				return
-			}
-
-			data, err := ioutil.ReadAll(body)
-			if err != nil {
-				pipe <- makeResult(nil, err)
-				return
-			}
-
-			if err = body.Close(); err != nil {
 				pipe <- makeResult(nil, err)
 				return
 			}

@@ -5,6 +5,7 @@ import (
 	"io"
 )
 
+// MineRecords allows to work with cvs records in a pipe style
 func MineRecords(f io.Reader, comma rune, skip int) <-chan struct {
 	Record []string
 	Error  error
