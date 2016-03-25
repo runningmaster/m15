@@ -130,13 +130,17 @@ func (c *cmdAVE) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 		goto Fail
 	}
 
-	if err = c.transformCSVs(); err != nil {
+	if err = c.transformCSVs(walkWay...); err != nil {
 		goto Fail
 	}
 
-	if err = c.uploadJSONGzips(); err != nil {
+	if err = c.uploadGzipJSONs(); err != nil {
 		goto Fail
 	}
+
+	//if err = c.removeZIPs(walkWay...); err != nil {
+	//	goto Fail
+	//}
 
 	return subcommands.ExitSuccess
 
@@ -164,9 +168,13 @@ func (c *cmdAVE) downloadZIPs() error {
 	return nil
 }
 
-func (c *cmdAVE) transformCSVs() error {
-	for i := range walkWay {
-		s := walkWay[i]
+func (c *cmdAVE) removeZIPs(file ...string) error {
+	return ftp.KillFiles(c.flagFTP, file...)
+}
+
+func (c *cmdAVE) transformCSVs(file ...string) error {
+	for i := range file {
+		s := file[i]
 		f, ok := c.mapFile[s]
 		if !ok {
 			return fmt.Errorf("cmd: ave: file not found '%v'", s)
@@ -250,7 +258,7 @@ func mustParseFloat64(s string) float64 {
 	return f
 }
 
-func (c *cmdAVE) uploadJSONGzips() error {
+func (c *cmdAVE) uploadGzipJSONs() error {
 	b := &bytes.Buffer{}
 
 	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
