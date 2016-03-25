@@ -1,11 +1,12 @@
 package cmd
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,7 +18,7 @@ import (
 	"internal/version"
 
 	"github.com/google/subcommands"
-	"github.com/pivotal-golang/bytefmt"
+	"github.com/klauspost/compress/gzip"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 )
@@ -50,6 +51,8 @@ var (
 				},
 			},
 		},
+		httpCtx: context.Background(),
+		httpUsr: fmt.Sprintf("%s %s", version.Stamp.AppName(), version.Stamp.Extended()),
 	}
 )
 
@@ -81,12 +84,15 @@ type price struct {
 type cmdAVE struct {
 	flagFTP string
 	flagWEB string
+	flagKey string
+	flagTag string
 	mapFile map[string]ftp.Filer
 	mapShop map[string]shop
 	mapDrug map[string]drug
 	mapProp map[string][]prop
-	httpCtx context.Context
 	httpCli *http.Client
+	httpCtx context.Context
+	httpUsr string
 }
 
 // Name returns the name of the command.
@@ -107,20 +113,28 @@ func (c *cmdAVE) Usage() string {
 // SetFlags adds the flags for this command to the specified set.
 func (c *cmdAVE) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&c.flagFTP, "ftp", "", "network address for FTP server 'ftp://user:pass@host:port'")
-	f.StringVar(&c.flagWEB, "web", "", "network address for WEB server 'scheme://domain/method'")
+	f.StringVar(&c.flagWEB, "web", "", "network address for WEB server 'scheme://domain.com'")
+	f.StringVar(&c.flagKey, "key", "", "service key")
+	f.StringVar(&c.flagTag, "tag", "", "service tag")
 }
 
 // Execute executes the command and returns an ExitStatus.
 func (c *cmdAVE) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
 	var err error
-	// fail fast
-	if err = c.downloadZIPFiles(); err != nil {
+
+	if err = c.failFast(); err != nil {
 		goto Fail
 	}
-	if err = c.transformCSVFiles(); err != nil {
+
+	if err = c.downloadZIPs(); err != nil {
 		goto Fail
 	}
-	if err = c.prepareJSONFiles(); err != nil {
+
+	if err = c.transformCSVs(); err != nil {
+		goto Fail
+	}
+
+	if err = c.uploadJSONGzips(); err != nil {
 		goto Fail
 	}
 
@@ -131,7 +145,7 @@ Fail:
 	return subcommands.ExitFailure
 }
 
-func (c *cmdAVE) downloadZIPFiles() error {
+func (c *cmdAVE) downloadZIPs() error {
 	ftpMiner := ftp.MineFiles(
 		c.flagFTP,
 		func(name string) bool {
@@ -150,7 +164,7 @@ func (c *cmdAVE) downloadZIPFiles() error {
 	return nil
 }
 
-func (c *cmdAVE) transformCSVFiles() error {
+func (c *cmdAVE) transformCSVs() error {
 	for i := range walkWay {
 		s := walkWay[i]
 		f, ok := c.mapFile[s]
@@ -181,7 +195,6 @@ func (c *cmdAVE) transformCSVFiles() error {
 				c.parseRecordOst(v.Record)
 			}
 		}
-		fmt.Println(s, count_all, count_err, bytefmt.ByteSize(uint64(f.Size())))
 		_ = rc.Close()
 	}
 	return nil
@@ -241,31 +254,96 @@ func mustParseFloat64(s string) float64 {
 	return f
 }
 
-func (c *cmdAVE) prepareJSONFiles() error {
-	t := time.Now()
+func (c *cmdAVE) uploadJSONGzips() error {
+	b := &bytes.Buffer{}
+
+	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
+	if err != nil {
+		return err
+	}
+
 	for k, v := range c.mapProp {
 		p := price{
 			Meta: c.mapShop[k],
 			Data: v,
 		}
 
-		bts, err := json.MarshalIndent(p, "", "\t")
-		if err != nil {
+		b.Reset()
+		w.Reset(b)
+
+		if err = json.NewEncoder(w).Encode(p); err != nil {
 			return err
 		}
 
-		if err = ioutil.WriteFile(fmt.Sprintf("./json/%v.json", k), bts, 0666); err != nil {
+		if err = w.Close(); err != nil {
+			return err
+		}
+
+		if err = c.failFast(); err != nil {
+			return err
+		}
+
+		if err = c.pushGzip(b); err != nil {
 			return err
 		}
 	}
-	fmt.Println(len(c.mapShop), len(c.mapDrug), len(c.mapProp))
-	fmt.Println(time.Since(t))
+
 	return nil
 }
 
-func (c *cmdAVE) ping(url string) error {
-	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+func (c *cmdAVE) pushGzip(r io.Reader) error {
+	ctx, _ := context.WithTimeout(c.httpCtx, 30*time.Second)
 	cli := c.httpCli
-	_, err := ctxhttp.Get(ctx, cli, url)
-	return err
+	url := c.makeURL("/data/add")
+
+	req, err := http.NewRequest("POST", url, r)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Encoding", "application/x-gzip")
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set("User-Agent", c.httpUsr)
+	req.Header.Set("X-Morion-Skynet-Key", c.flagKey)
+	req.Header.Set("X-Morion-Skynet-Tag", c.flagTag)
+
+	res, err := ctxhttp.Do(ctx, cli, req)
+	if err != nil {
+		return err
+	}
+
+	if err = res.Body.Close(); err != nil {
+		return err
+	}
+
+	if res.StatusCode >= 300 {
+		return fmt.Errorf("ave: push failed with code %d", res.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *cmdAVE) failFast() error {
+	ctx, _ := context.WithTimeout(c.httpCtx, 10*time.Second)
+	cli := c.httpCli
+	url := c.makeURL("/ping")
+
+	res, err := ctxhttp.Get(ctx, cli, url)
+	if err != nil {
+		return err
+	}
+
+	if err = res.Body.Close(); err != nil {
+		return err
+	}
+
+	if res.StatusCode >= 300 {
+		return fmt.Errorf("ave: fail fast with code %d", res.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *cmdAVE) makeURL(path string) string {
+	return c.flagWEB + path
 }
