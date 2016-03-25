@@ -101,6 +101,23 @@ func readFile(c *ftp.ServerConn, name string) ([]byte, error) {
 	return data, nil
 }
 
+// KillFiles deletes files
+func KillFiles(addr string, name ...string) error {
+	c, err := connect(addr)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = c.Quit() }()
+
+	for i := range name {
+		if err = c.Delete(name[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // MineFiles allows to work with files in a pipe style
 func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struct {
 	File  Filer
