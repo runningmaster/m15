@@ -30,4 +30,12 @@ golang.org/x/text/transform
 # https://godoc.org/github.com/klauspost/compress/gzip
 github.com/klauspost/compress/gzip
 
+# RFC1939 client implementation for go.
+# https://godoc.org/github.com/bytbox/go-pop3
+github.com/bytbox/go-pop3
+
+# The mailgun package provides methods for interacting with the Mailgun API.
+# https://godoc.org/github.com/mailgun/mailgun-go
+github.com/mailgun/mailgun-go
+
 ### Below some alternatives for consideration ###
