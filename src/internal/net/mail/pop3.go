@@ -9,7 +9,6 @@ import (
 	"net/mail"
 	"net/textproto"
 	"net/url"
-	"path/filepath"
 	"strings"
 
 	pop3 "github.com/bytbox/go-pop3"
@@ -24,7 +23,12 @@ type Filer interface {
 
 type file struct {
 	r    io.Reader
+	name string
 	subj string
+}
+
+func (f file) Name() string {
+	return f.name
 }
 
 func (f file) Subj() string {
@@ -61,15 +65,29 @@ func connect(addr string) (*pop3.Client, error) {
 	return c, nil
 }
 
+// NewMailChan allows to work with messages from POP3 server in a pipe style
 func NewMailChan(addr string, cleanup bool) <-chan struct {
 	Mail  io.Reader
 	Error error
 } {
-	pipe := make(chan struct {
-		Mail  io.Reader
-		Error error
-	})
-
+	var (
+		pipe = make(chan struct {
+			Mail  io.Reader
+			Error error
+		})
+		makeResult = func(r io.Reader, err error) struct {
+			Mail  io.Reader
+			Error error
+		} {
+			return struct {
+				Mail  io.Reader
+				Error error
+			}{
+				r,
+				err,
+			}
+		}
+	)
 	go func() {
 		var (
 			c   *pop3.Client
@@ -103,48 +121,49 @@ func NewMailChan(addr string, cleanup bool) <-chan struct {
 				}
 			}
 
-			pipe <- makeMail(strings.NewReader(m), nil)
+			pipe <- makeResult(strings.NewReader(m), nil)
 		}
 		return // success
 	fail:
-		pipe <- makeMail(nil, err)
+		pipe <- makeResult(nil, err)
 	}()
 
 	return pipe
 }
 
-func makeMail(r io.Reader, err error) struct {
-	Mail  io.Reader
-	Error error
-} {
-	return struct {
-		Mail  io.Reader
-		Error error
-	}{
-		r,
-		err,
-	}
-}
-
-func FetchFiles(addr string, cleanup bool) <-chan struct {
+// NewFileChan allows to work with files (attachments) from POP3 server in a pipe style
+func NewFileChan(addr string, cleanup bool) <-chan struct {
 	File  Filer
 	Error error
 } {
-	pipe := make(chan struct {
-		File  Filer
-		Error error
-	})
-
+	var (
+		pipe = make(chan struct {
+			File  Filer
+			Error error
+		})
+		makeResult = func(f Filer, err error) struct {
+			File  Filer
+			Error error
+		} {
+			return struct {
+				File  Filer
+				Error error
+			}{
+				f,
+				err,
+			}
+		}
+	)
 	go func() {
 		defer close(pipe)
 		var (
-			m, r io.Reader
-			b    string
-			err  error
-			vCh  = PullMessages(addr, cleanup)
+			m   *mail.Message
+			s   string
+			err error
+			vCh = NewMailChan(addr, cleanup)
 		)
 		for v := range vCh {
-			if v.Error != nil {
+			if err = v.Error; err != nil {
 				goto fail
 			}
 
@@ -152,12 +171,12 @@ func FetchFiles(addr string, cleanup bool) <-chan struct {
 				goto fail
 			}
 
-			if b, err = findBoundary(msg.Header); err != nil {
+			if s, err = findBoundary(m.Header); err != nil {
 				goto fail
 			}
 
 			var (
-				r = multipart.NewReader(msg.Body, b) // multipart reader
+				r = multipart.NewReader(m.Body, s) // multipart reader
 				p *multipart.Part
 			)
 			for {
@@ -168,121 +187,65 @@ func FetchFiles(addr string, cleanup bool) <-chan struct {
 					goto fail
 				}
 
-				enc, err := findContentEnc(p.Header)
-				if err != nil {
+				if !foundBase64Attach(p.Header) {
 					continue
 				}
 
-				gzs = append(gzs, func() (string, io.Reader) {
-					return enc, base64.NewDecoder(base64.StdEncoding, p)
-				})
+				if s, err = findFileName(p.Header); err != nil {
+					continue
+				}
 
+				pipe <- makeResult(
+					file{
+						r:    base64.NewDecoder(base64.StdEncoding, p),
+						name: s,
+						subj: m.Header.Get("Subject"),
+					},
+					nil,
+				)
 			}
 
 		}
-
 		return // success
 	fail:
-		pipe <- makeResult2(nil, err)
+		pipe <- makeResult(nil, err)
 	}()
 
 	return pipe
 }
 
-func makeResult2(f Filer, err error) struct {
-	File  Filer
-	Error error
-} {
-	return struct {
-		File  Filer
-		Error error
-	}{
-		f,
-		err,
-	}
-}
-
-// FIXME
-func MineAttachGZ(body io.Reader, n int) (sbj string, gzs []func() (string, io.Reader), err error) {
-	errFunc := func(err error) (string, []func() (string, io.Reader), error) {
-		return "", nil, err
-	}
-
-	if n == 0 {
-		return errFunc(io.EOF)
-	}
-
-	msg, err := mail.ReadMessage(body)
-	if err != nil {
-		return errFunc(err)
-	}
-
-	bnd, err := findBoundary(msg.Header)
-	if err != nil {
-		return errFunc(err)
-	}
-
-	mpr := multipart.NewReader(msg.Body, bnd)      // multipart reader
-	gzs = make([]func() (string, io.Reader), 0, 1) // output
-	for {
-		p, err := mpr.NextPart()
-		if err != nil {
-			return errFunc(err)
-		}
-
-		enc, err := findContentEnc(p.Header)
-		if err != nil {
-			continue
-		}
-
-		gzs = append(gzs, func() (string, io.Reader) {
-			return enc, base64.NewDecoder(base64.StdEncoding, p)
-		})
-		if len(gzs) == n {
-			break
-		}
-	}
-
-	sbj = msg.Header.Get("Subject")
-	return sbj, gzs, nil
-}
-
-func findBoundary(header mail.Header) (string, error) {
-	mtype, params, err := mime.ParseMediaType(header.Get("Content-Type"))
+func findBoundary(h mail.Header) (string, error) {
+	t, p, err := mime.ParseMediaType(h.Get("Content-Type"))
 	if err != nil {
 		return "", err
 	}
 
-	if !strings.HasPrefix(mtype, "multipart/") {
-		return "", fmt.Errorf("multipart bot found")
+	if !strings.HasPrefix(t, "multipart/") {
+		return "", fmt.Errorf("multipart not found")
 	}
 
-	b := params["boundary"]
-	if b == "" {
-		return "", fmt.Errorf("boundary not found")
+	if v := p["boundary"]; v != "" {
+		return v, nil
 	}
 
-	return b, nil
+	return "", fmt.Errorf("boundary not found")
 }
 
-func findContentEnc(header textproto.MIMEHeader) (string, error) {
-	foundAttach := strings.Contains(header.Get("Content-Disposition"), "attachment")
-	foundBase64 := strings.Contains(header.Get("Content-Transfer-Encoding"), "base64")
-	if !(foundAttach && foundBase64) {
-		goto fail
-	}
-
-	_, params, err := mime.ParseMediaType(header.Get("Content-Type"))
+func findFileName(h textproto.MIMEHeader) (string, error) {
+	_, p, err := mime.ParseMediaType(h.Get("Content-Type"))
 	if err != nil {
-		goto fail
+		return "", err
 	}
 
-	ext := filepath.Ext(params["name"])
-	if !(ext == ".gzip" || ext == ".gz") {
-		goto fail
+	if v := p["name"]; v != "" {
+		return v, nil
 	}
 
-	return "gzip", nil // success
-fail:
-	return "", fmt.Errorf("gzip not found")
+	return "", fmt.Errorf("file name not found")
+}
+
+func foundBase64Attach(h textproto.MIMEHeader) bool {
+	foundAttach := strings.Contains(h.Get("Content-Disposition"), "attachment")
+	foundBase64 := strings.Contains(h.Get("Content-Transfer-Encoding"), "base64")
+	return foundAttach && foundBase64
 }

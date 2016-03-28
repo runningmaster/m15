@@ -96,8 +96,8 @@ func readFile(c *ftp.ServerConn, name string) ([]byte, error) {
 	return data, nil
 }
 
-// KillFiles deletes files
-func KillFiles(addr string, name ...string) error {
+// Delete deletes files
+func Delete(addr string, name ...string) error {
 	c, err := connect(addr)
 	if err != nil {
 		return err
@@ -113,16 +113,29 @@ func KillFiles(addr string, name ...string) error {
 	return nil
 }
 
-// MineFiles allows to work with files in a pipe style
-func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struct {
+// NewFileChan allows to work with files from FTP server in a pipe style
+func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan struct {
 	File  Filer
 	Error error
 } {
-	pipe := make(chan struct {
-		File  Filer
-		Error error
-	})
-
+	var (
+		pipe = make(chan struct {
+			File  Filer
+			Error error
+		})
+		makeResult = func(f Filer, err error) struct {
+			File  Filer
+			Error error
+		} {
+			return struct {
+				File  Filer
+				Error error
+			}{
+				f,
+				err,
+			}
+		}
+	)
 	go func() {
 		var (
 			c   *ftp.ServerConn
@@ -175,17 +188,4 @@ func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struc
 	}()
 
 	return pipe
-}
-
-func makeResult(f Filer, err error) struct {
-	File  Filer
-	Error error
-} {
-	return struct {
-		File  Filer
-		Error error
-	}{
-		f,
-		err,
-	}
 }

@@ -124,34 +124,34 @@ func (c *cmdAVE) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 	var err error
 
 	if err = c.failFast(); err != nil {
-		goto Fail
+		goto fail
 	}
 
 	if err = c.downloadZIPs(); err != nil {
-		goto Fail
+		goto fail
 	}
 
 	if err = c.transformCSVs(walkWay...); err != nil {
-		goto Fail
+		goto fail
 	}
 
 	if err = c.uploadGzipJSONs(); err != nil {
-		goto Fail
+		goto fail
 	}
 
-	//if err = c.removeZIPs(walkWay...); err != nil {
+	//if err = c.deleteZIPs(walkWay...); err != nil {
 	//	goto Fail
 	//}
 
 	return subcommands.ExitSuccess
 
-Fail:
+fail:
 	fmt.Println(err)
 	return subcommands.ExitFailure
 }
 
 func (c *cmdAVE) downloadZIPs() error {
-	ftpMiner := ftp.MineFiles(
+	vCh := ftp.NewFileChan(
 		c.flagFTP,
 		func(name string) bool {
 			return strings.Contains(strings.ToLower(name), timeFmt)
@@ -159,7 +159,7 @@ func (c *cmdAVE) downloadZIPs() error {
 		false,
 	)
 
-	for v := range ftpMiner {
+	for v := range vCh {
 		if v.Error != nil {
 			return v.Error
 		}
@@ -169,8 +169,8 @@ func (c *cmdAVE) downloadZIPs() error {
 	return nil
 }
 
-func (c *cmdAVE) removeZIPs(file ...string) error {
-	return ftp.KillFiles(c.flagFTP, file...)
+func (c *cmdAVE) deleteZIPs(file ...string) error {
+	return ftp.Delete(c.flagFTP, file...)
 }
 
 func (c *cmdAVE) transformCSVs(file ...string) error {
