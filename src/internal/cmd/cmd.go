@@ -7,4 +7,5 @@ import (
 // Register registers commands in subcommands
 func Register() {
 	subcommands.Register(ave, "")
+	subcommands.Register(foz, "")
 }
