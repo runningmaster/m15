@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"internal/archive/zip"
 	"internal/encoding/csv"
 	"internal/encoding/txt"
 	"internal/net/ftp"
@@ -180,7 +181,7 @@ func (c *cmdAVE) transformCSVs(file ...string) error {
 			return fmt.Errorf("cmd: ave: file not found '%v'", s)
 		}
 
-		rc, err := f.Unzip()
+		rc, err := zip.ExtractFile(f, f.Size())
 		if err != nil {
 			return err
 		}

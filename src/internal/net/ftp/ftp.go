@@ -1,7 +1,6 @@
 package ftp
 
 import (
-	"archive/zip"
 	"bytes"
 	"fmt"
 	"io"
@@ -14,10 +13,11 @@ import (
 
 // Filer is representation for file from FTP
 type Filer interface {
+	io.Reader
+	io.ReaderAt
 	Name() string
 	Size() int64
 	Time() time.Time
-	Unzip() (io.ReadCloser, error)
 }
 
 type file struct {
@@ -38,17 +38,12 @@ func (f file) Time() time.Time {
 	return f.time
 }
 
-func (f file) Unzip() (io.ReadCloser, error) {
-	z, err := zip.NewReader(f.r, f.r.Size())
-	if err != nil {
-		return nil, err
-	}
+func (f file) Read(b []byte) (int, error) {
+	return f.r.Read(b)
+}
 
-	if len(z.File) == 0 {
-		return nil, fmt.Errorf("zip: archive is empty: %s", "unreachable")
-	}
-
-	return z.File[0].Open()
+func (f file) ReadAt(b []byte, off int64) (int, error) {
+	return f.r.ReadAt(b, off)
 }
 
 func connect(addr string) (*ftp.ServerConn, error) {
@@ -129,49 +124,54 @@ func MineFiles(addr string, nameOK func(string) bool, cleanup bool) <-chan struc
 	})
 
 	go func() {
-		defer close(pipe)
+		var (
+			c   *ftp.ServerConn
+			l   []*ftp.Entry
+			err error
+		)
+		defer func() {
+			if c != nil {
+				_ = c.Quit()
+			}
+			close(pipe)
+		}()
 
-		c, err := connect(addr)
-		if err != nil {
-			pipe <- makeResult(nil, err)
-			return
+		if c, err = connect(addr); err != nil {
+			goto fail
 		}
-		defer func() { _ = c.Quit() }()
 
-		list, err := c.List(".")
-		if err != nil {
-			pipe <- makeResult(nil, err)
-			return
+		if l, err = c.List("."); err != nil {
+			goto fail
 		}
 
-		var v *ftp.Entry
-		for _, v = range list {
+		for _, v := range l {
 			if skipFile(v, nameOK) {
 				continue
 			}
 
-			data, err := readFile(c, v.Name)
-			if err != nil {
-				pipe <- makeResult(nil, err)
-				return
+			var b []byte
+			if b, err = readFile(c, v.Name); err != nil {
+				goto fail
 			}
 
 			if cleanup {
 				if err = c.Delete(v.Name); err != nil {
-					pipe <- makeResult(nil, err)
-					return
+					goto fail
 				}
 			}
 
 			pipe <- makeResult(
 				file{
-					r:    bytes.NewReader(data),
+					r:    bytes.NewReader(b),
 					name: v.Name,
 					time: v.Time,
 				},
 				nil,
 			)
 		}
+		return // success
+	fail:
+		pipe <- makeResult(nil, err)
 	}()
 
 	return pipe
