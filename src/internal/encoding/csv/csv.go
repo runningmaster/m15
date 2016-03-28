@@ -21,20 +21,25 @@ func MineRecords(f io.Reader, comma rune, skip int) <-chan struct {
 		r := csv.NewReader(f)
 		r.Comma = comma
 
-		var rec []string
-		var err error
-		var n int
+		var (
+			n   int
+			rec []string
+			err error
+		)
 		for {
-			if rec, err = r.Read(); err == io.EOF {
-				break
-			} else if err != nil {
+			if rec, err = r.Read(); err != nil {
+				if err == io.EOF {
+					break
+				}
 				pipe <- makeRecord(nil, err)
 				continue
 			}
+
 			n++
 			if n < skip {
 				continue
 			}
+
 			pipe <- makeRecord(rec, nil)
 		}
 	}()
