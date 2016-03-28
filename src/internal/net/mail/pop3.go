@@ -15,72 +15,191 @@ import (
 	pop3 "github.com/bytbox/go-pop3"
 )
 
-func PullMessages(rawurl string) <-chan func() (io.Reader, error) {
-	pipe := make(chan func() (io.Reader, error))
+// Filer is representation for attach in mail message from POP3
+type Filer interface {
+	io.Reader
+	Name() string
+	Subj() string
+}
+
+type file struct {
+	r    io.Reader
+	subj string
+}
+
+func (f file) Subj() string {
+	return f.subj
+}
+
+func (f file) Read(b []byte) (int, error) {
+	return f.r.Read(b)
+}
+
+func connect(addr string) (*pop3.Client, error) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	if u.User == nil {
+		return nil, fmt.Errorf("pop3: user must be defined")
+	}
+
+	user := u.User.Username()
+	pass, _ := u.User.Password()
+
+	c, err := pop3.Dial(u.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.Auth(user, pass)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
+func NewMailChan(addr string, cleanup bool) <-chan struct {
+	Mail  io.Reader
+	Error error
+} {
+	pipe := make(chan struct {
+		Mail  io.Reader
+		Error error
+	})
+
 	go func() {
-		defer close(pipe)
-		pushError := func(err error) bool {
-			if err != nil {
-				pipe <- func() (io.Reader, error) {
-					return nil, err
-				}
-				return true
-			}
-			return false
-		}
-
-		u, err := url.Parse(rawurl)
-		if pushError(err) {
-			return
-		}
-		var user, pass string
-		if u.User != nil {
-			user = u.User.Username()
-			pass, _ = u.User.Password()
-		}
-
-		c, err := pop3.Dial(u.Host)
-		if pushError(err) {
-			return
-		}
+		var (
+			c   *pop3.Client
+			l   []int
+			err error
+		)
 		defer func() {
-			if c == nil {
-				return
+			if c != nil {
+				_ = c.Quit()
 			}
-			err := c.Quit()
-			if pushError(err) {
-				return
-			}
+			close(pipe)
 		}()
 
-		err = c.Auth(user, pass)
-		if pushError(err) {
-			return
+		if c, err = connect(addr); err != nil {
+			goto fail
 		}
 
-		list, _, err := c.ListAll()
-		if pushError(err) {
-			return
+		if l, _, err = c.ListAll(); err != nil {
+			goto fail
 		}
 
-		for i := range list {
-			n := list[i]
-			msg, err := c.Retr(n)
-			if pushError(err) {
-				return
+		for i := range l {
+			var m string
+			if m, err = c.Retr(l[i]); err != nil {
+				goto fail
 			}
-			pipe <- func() (io.Reader, error) {
-				return strings.NewReader(msg), nil
 
+			if cleanup {
+				if err = c.Dele(l[i]); err != nil {
+					goto fail
+				}
 			}
-			err = c.Dele(n)
-			if pushError(err) {
-				return
-			}
+
+			pipe <- makeMail(strings.NewReader(m), nil)
 		}
+		return // success
+	fail:
+		pipe <- makeMail(nil, err)
 	}()
 
 	return pipe
+}
+
+func makeMail(r io.Reader, err error) struct {
+	Mail  io.Reader
+	Error error
+} {
+	return struct {
+		Mail  io.Reader
+		Error error
+	}{
+		r,
+		err,
+	}
+}
+
+func FetchFiles(addr string, cleanup bool) <-chan struct {
+	File  Filer
+	Error error
+} {
+	pipe := make(chan struct {
+		File  Filer
+		Error error
+	})
+
+	go func() {
+		defer close(pipe)
+		var (
+			m, r io.Reader
+			b    string
+			err  error
+			vCh  = PullMessages(addr, cleanup)
+		)
+		for v := range vCh {
+			if v.Error != nil {
+				goto fail
+			}
+
+			if m, err = mail.ReadMessage(v.Mail); err != nil {
+				goto fail
+			}
+
+			if b, err = findBoundary(msg.Header); err != nil {
+				goto fail
+			}
+
+			var (
+				r = multipart.NewReader(msg.Body, b) // multipart reader
+				p *multipart.Part
+			)
+			for {
+				if p, err = r.NextPart(); err != nil {
+					if err == io.EOF {
+						break
+					}
+					goto fail
+				}
+
+				enc, err := findContentEnc(p.Header)
+				if err != nil {
+					continue
+				}
+
+				gzs = append(gzs, func() (string, io.Reader) {
+					return enc, base64.NewDecoder(base64.StdEncoding, p)
+				})
+
+			}
+
+		}
+
+		return // success
+	fail:
+		pipe <- makeResult2(nil, err)
+	}()
+
+	return pipe
+}
+
+func makeResult2(f Filer, err error) struct {
+	File  Filer
+	Error error
+} {
+	return struct {
+		File  Filer
+		Error error
+	}{
+		f,
+		err,
+	}
 }
 
 // FIXME
@@ -133,56 +252,37 @@ func findBoundary(header mail.Header) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	if !strings.HasPrefix(mtype, "multipart/") {
-		return "", err
+		return "", fmt.Errorf("multipart bot found")
 	}
 
-	boundary := params["boundary"]
-	if boundary == "" {
+	b := params["boundary"]
+	if b == "" {
 		return "", fmt.Errorf("boundary not found")
 	}
 
-	return boundary, nil
+	return b, nil
 }
 
 func findContentEnc(header textproto.MIMEHeader) (string, error) {
-	notFound := func() (string, error) {
-		return "", fmt.Errorf("gzip not found")
-	}
-
 	foundAttach := strings.Contains(header.Get("Content-Disposition"), "attachment")
 	foundBase64 := strings.Contains(header.Get("Content-Transfer-Encoding"), "base64")
 	if !(foundAttach && foundBase64) {
-		return notFound()
+		goto fail
 	}
 
 	_, params, err := mime.ParseMediaType(header.Get("Content-Type"))
 	if err != nil {
-		return notFound()
+		goto fail
 	}
 
 	ext := filepath.Ext(params["name"])
 	if !(ext == ".gzip" || ext == ".gz") {
-		return notFound()
+		goto fail
 	}
 
-	return "gzip", nil
+	return "gzip", nil // success
+fail:
+	return "", fmt.Errorf("gzip not found")
 }
-
-/*
-A send to a nil channel blocks forever
-A receive from a nil channel blocks forever
-A send to a closed channel panics
-A receive from a closed channel returns the zero value immediately
-
-1. skynet@morion.ua
-
-2. 1 email => 1 pharmacy (drugstore) => 1 attachment => GZIP*(JSON, UTF-8)
-
-3. Subj as JSON => {"key":"<key_value>","tag":"<tag_value>"}
-
-GZIP RFC 1952 https://www.ietf.org/rfc/rfc1952.txt
-www.7-zip.org
-www.gzip.org
-
-*/
