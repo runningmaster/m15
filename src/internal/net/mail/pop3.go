@@ -1,9 +1,11 @@
 package mail
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"net/mail"
@@ -22,7 +24,7 @@ type Filer interface {
 }
 
 type file struct {
-	r    io.Reader
+	r    *bytes.Reader
 	name string
 	subj string
 }
@@ -39,7 +41,7 @@ func (f file) Read(b []byte) (int, error) {
 	return f.r.Read(b)
 }
 
-func connect(addr string) (*pop3.Client, error) {
+func newPOP3(addr string) (*pop3.Client, error) {
 	u, err := url.Parse(addr)
 	if err != nil {
 		return nil, err
@@ -101,7 +103,7 @@ func NewMailChan(addr string, cleanup bool) <-chan struct {
 			close(pipe)
 		}()
 
-		if c, err = connect(addr); err != nil {
+		if c, err = newPOP3(addr); err != nil {
 			goto fail
 		}
 
@@ -131,8 +133,19 @@ func NewMailChan(addr string, cleanup bool) <-chan struct {
 	return pipe
 }
 
+func skipFile(h textproto.MIMEHeader, name string, nameOK func(string) bool) bool {
+	badBase := !foundBase64Attach(h)
+	badName := nameOK != nil && !nameOK(name)
+	return badBase || badName
+}
+
+func readFile(p io.ReadCloser) ([]byte, error) {
+	defer func() { _ = p.Close() }()
+	return ioutil.ReadAll(base64.NewDecoder(base64.StdEncoding, p))
+}
+
 // NewFileChan allows to work with files (attachments) from POP3 server in a pipe style
-func NewFileChan(addr string, cleanup bool) <-chan struct {
+func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan struct {
 	File  Filer
 	Error error
 } {
@@ -178,6 +191,7 @@ func NewFileChan(addr string, cleanup bool) <-chan struct {
 			var (
 				r = multipart.NewReader(m.Body, s) // multipart reader
 				p *multipart.Part
+				b []byte
 			)
 			for {
 				if p, err = r.NextPart(); err != nil {
@@ -187,17 +201,19 @@ func NewFileChan(addr string, cleanup bool) <-chan struct {
 					goto fail
 				}
 
-				if !foundBase64Attach(p.Header) {
+				s, _ = findFileName(p.Header)
+
+				if skipFile(p.Header, s, nameOK) {
 					continue
 				}
 
-				if s, err = findFileName(p.Header); err != nil {
-					continue
+				if b, err = readFile(p); err != nil {
+					goto fail
 				}
 
 				pipe <- makeResult(
 					file{
-						r:    base64.NewDecoder(base64.StdEncoding, p),
+						r:    bytes.NewReader(b),
 						name: s,
 						subj: m.Header.Get("Subject"),
 					},

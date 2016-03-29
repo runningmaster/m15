@@ -46,7 +46,7 @@ func (f file) ReadAt(b []byte, off int64) (int, error) {
 	return f.r.ReadAt(b, off)
 }
 
-func connect(addr string) (*ftp.ServerConn, error) {
+func newFTP(addr string) (*ftp.ServerConn, error) {
 	u, err := url.Parse(addr)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func readFile(c *ftp.ServerConn, name string) ([]byte, error) {
 
 // Delete deletes files
 func Delete(addr string, name ...string) error {
-	c, err := connect(addr)
+	c, err := newFTP(addr)
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 			close(pipe)
 		}()
 
-		if c, err = connect(addr); err != nil {
+		if c, err = newFTP(addr); err != nil {
 			goto fail
 		}
 

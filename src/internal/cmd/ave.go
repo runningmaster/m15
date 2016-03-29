@@ -15,7 +15,9 @@ import (
 	"internal/archive/zip"
 	"internal/encoding/csv"
 	"internal/encoding/txt"
+	"internal/log"
 	"internal/net/ftp"
+	"internal/net/mail"
 	"internal/version"
 
 	"github.com/google/subcommands"
@@ -87,6 +89,9 @@ type cmdAVE struct {
 	flagWEB string
 	flagKey string
 	flagTag string
+	flagMGn string
+	flagMFm string
+	flagMTo string
 	mapFile map[string]ftp.Filer
 	mapShop map[string]shop
 	mapDrug map[string]drug
@@ -117,6 +122,10 @@ func (c *cmdAVE) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&c.flagWEB, "web", "", "network address for WEB server 'scheme://domain.com'")
 	f.StringVar(&c.flagKey, "key", "", "service key")
 	f.StringVar(&c.flagTag, "tag", "", "service tag")
+
+	f.StringVar(&c.flagMGn, "mgn", "", "Mailgun service 'mail://key@box.mailgun.org'")
+	f.StringVar(&c.flagMFm, "mfm", "noreplay@example.com", "Mailgun from")
+	f.StringVar(&c.flagMTo, "mto", "", "Mailgun to")
 }
 
 // Execute executes the command and returns an ExitStatus.
@@ -146,8 +155,23 @@ func (c *cmdAVE) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 	return subcommands.ExitSuccess
 
 fail:
-	fmt.Println(err)
+	log.Println(c.sendError(err))
 	return subcommands.ExitFailure
+}
+
+func (c *cmdAVE) sendError(err error) error {
+	if c.flagMGn != "" {
+		if err = mail.Send(
+			c.flagMGn,
+			c.flagMFm,
+			fmt.Sprintf("ERROR [%s]", c.Name()),
+			fmt.Sprintf("%v: version %v: %v", time.Now(), version.Stamp.Extended(), err),
+			c.flagMTo,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *cmdAVE) downloadZIPs() error {
@@ -284,10 +308,6 @@ func (c *cmdAVE) uploadGzipJSONs() error {
 			return err
 		}
 
-		if err = c.failFast(); err != nil {
-			return err
-		}
-
 		if err = c.pushGzip(b); err != nil {
 			return err
 		}
@@ -329,7 +349,7 @@ func (c *cmdAVE) pushGzip(r io.Reader) error {
 }
 
 func (c *cmdAVE) failFast() error {
-	ctx, _ := context.WithTimeout(c.httpCtx, 10*time.Second)
+	ctx, _ := context.WithTimeout(c.httpCtx, 5*time.Second)
 	cli := c.httpCli
 	url := c.makeURL("/ping")
 
