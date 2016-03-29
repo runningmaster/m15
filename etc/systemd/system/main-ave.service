@@ -1,0 +1,6 @@
+[Unit]
+Description=main ave
+
+[Service]
+Type=simple
+ExecStart=/home/user1/main/main ave -ftp='' -web='' -key='' -tag='' -mgn='' -mto=''

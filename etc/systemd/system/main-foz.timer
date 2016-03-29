@@ -1,0 +1,9 @@
+[Unit]
+Description=Run main-foz.service
+
+[Timer]
+OnUnitActiveSec=2 hours
+Unit=main-foz.service
+
+[Install]
+WantedBy=timers.target

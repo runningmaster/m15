@@ -1,0 +1,9 @@
+[Unit]
+Description=Run main-ave.service
+
+[Timer]
+OnCalendar=10:10:00
+Unit=main-ave.service
+
+[Install]
+WantedBy=timers.target
