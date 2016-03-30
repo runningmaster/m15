@@ -14,6 +14,10 @@ github.com/google/subcommands
 # https://godoc.org/github.com/jlaffaye/ftp
 github.com/jlaffaye/ftp
 
+# Package for dbf
+# https://godoc.org/github.com/CentaurWarchief/godbf
+github.com/CentaurWarchief/godbf
+
 # Package bytefmt contains helper methods and constants for converting to and from a human-readable byte format.
 # https://godoc.org/github.com/pivotal-golang/bytefmt
 github.com/pivotal-golang/bytefmt
