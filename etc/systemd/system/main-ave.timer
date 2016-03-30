@@ -1,5 +1,5 @@
 [Unit]
-Description=Run main-ave.service
+Description=run main-ave.service
 
 [Timer]
 OnCalendar=10:10:00

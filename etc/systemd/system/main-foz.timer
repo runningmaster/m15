@@ -1,8 +1,8 @@
 [Unit]
-Description=Run main-foz.service
+Description=run main-foz.service
 
 [Timer]
-OnActiveSec=2 hours
+OnCalendar=*:15/2
 Unit=main-foz.service
 
 [Install]

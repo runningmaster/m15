@@ -2,5 +2,5 @@
 Description=main foz
 
 [Service]
-Type=simple
+Type=oneshot
 ExecStart=/home/user1/main/main foz -pop='' -web='' -key='' -tag='' -mgn='' -mto=''
