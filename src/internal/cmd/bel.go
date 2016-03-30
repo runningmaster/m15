@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ import (
 
 	dbf "github.com/CentaurWarchief/godbf"
 	"github.com/google/subcommands"
+	"github.com/klauspost/compress/gzip"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 	"golang.org/x/text/encoding/charmap"
@@ -29,6 +31,7 @@ import (
 var (
 	bel = &cmdBel{
 		mapFile: make(map[string]ftp.Filer, 100),
+		mapJSON: make(map[string]interface{}, 100),
 		httpCli: &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
@@ -42,38 +45,36 @@ var (
 )
 
 type meta struct {
-	Version     int
-	Agent       string
-	Timestamp   string
-	TRangeLower string
-	TRangeUpper string
+	Timestamp   string `json:",omitempty"`
+	TRangeLower string `json:",omitempty"`
+	TRangeUpper string `json:",omitempty"`
 }
 
 type item struct {
-	Code     string
-	Drug     string
-	QuantInp float64
-	QuantOut float64
-	PriceInp float64
-	PriceOut float64
-	PriceRoc float64
-	Balance  float64
-	BalanceT float64
+	Code     string  `json:",omitempty"`
+	Drug     string  `json:",omitempty"`
+	QuantInp float64 `json:",omitempty"`
+	QuantOut float64 `json:",omitempty"`
+	PriceInp float64 `json:",omitempty"`
+	PriceOut float64 `json:",omitempty"`
+	PriceRoc float64 `json:",omitempty"`
+	Balance  float64 `json:",omitempty"`
+	BalanceT float64 `json:",omitempty"`
 }
 
 type head struct {
-	Source    string
-	Drugstore string
+	Source    string `json:",omitempty"`
+	Drugstore string `json:",omitempty"`
 }
 
 type data struct {
-	Head head
-	Item []item
+	Head head   `json:",omitempty"`
+	Item []item `json:",omitempty"`
 }
 
 type priceOld struct {
-	Meta meta
-	Data []data
+	Meta meta   `json:",omitempty"`
+	Data []data `json:",omitempty"`
 }
 
 type cmdBel struct {
@@ -85,6 +86,7 @@ type cmdBel struct {
 	flagMFm string
 	flagMTo string
 	mapFile map[string]ftp.Filer
+	mapJSON map[string]interface{}
 	//mapShop map[string]shop
 	//mapDrug map[string]drug
 	//mapProp map[string][]prop
@@ -141,9 +143,9 @@ func (c *cmdBel) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 		goto fail
 	}
 
-	//if err = c.deleteZIPs(walkWay...); err != nil {
-	//	goto Fail
-	//}
+	if err = c.deleteZIPs(); err != nil {
+		goto fail
+	}
 
 	return subcommands.ExitSuccess
 
@@ -190,6 +192,14 @@ func (c *cmdBel) downloadZIPs() error {
 	return nil
 }
 
+func (c *cmdBel) deleteZIPs() error {
+	f := make([]string, 0, len(c.mapFile))
+	for k, _ := range c.mapFile {
+		f = append(f, k)
+	}
+	return ftp.Delete(c.flagFTP, f...)
+}
+
 func (c *cmdBel) transformDBFs() error {
 	for k, v := range c.mapFile {
 		rc, err := zip.ExtractFile(v, v.Size())
@@ -208,22 +218,88 @@ func (c *cmdBel) transformDBFs() error {
 			return err
 		}
 
+		var (
+			name, date    string
+			drugPlusMaker = func(name, maker string) string {
+				if !strings.Contains(strings.ToLower(name), strings.ToLower(maker)) {
+					return fmt.Sprintf("%s %s", name, maker)
+				}
+				return name
+			}
+		)
+		items := make([]item, 0, f.RecordCount())
 		for i := uint32(0); i < f.RecordCount(); i++ {
 			r, err := f.Read(uint16(i))
 			if err != nil {
 				return err
 			}
 			if i == 0 {
-				fmt.Println(k)
-				fmt.Println(castToStringSafely(r["APTEKA"]))
-				fmt.Println(castToStringSafely(r["DATE"]))
+				name = castToStringSafely(r["APTEKA"])
+				date = castToTimeStringSafely(r["DATE"])
 			}
+
+			items = append(items, item{
+				Code:     "",
+				Drug:     drugPlusMaker(castToStringSafely(r["TOVAR"]), castToStringSafely(r["PROIZV"])),
+				QuantInp: castToFloat64Safely(r["APTIN"]),
+				QuantOut: castToFloat64Safely(r["OUT"]),
+				PriceInp: castToFloat64Safely(r["PRICEIN"]),
+				PriceOut: castToFloat64Safely(r["PRICE"]),
+				PriceRoc: castToFloat64Safely(r["ROC"]),
+				Balance:  castToFloat64Safely(r["KOLSTAT"]),
+				BalanceT: castToFloat64Safely(r["AMOUNT"]),
+			})
+		}
+
+		c.mapJSON[k] = priceOld{
+			Meta: meta{
+				Timestamp:   time.Now().Format("02.01.2006 15:04:05.999999999"),
+				TRangeLower: date + " 00:00:00",
+				TRangeUpper: date + " 23:59:59",
+			},
+			Data: []data{
+				{
+					Head: head{
+						Source:    "file:" + k,
+						Drugstore: name,
+					},
+					Item: items,
+				},
+			},
 		}
 	}
 	return nil
 }
 
 func (c *cmdBel) uploadGzipJSONs() error {
+	b := &bytes.Buffer{}
+
+	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
+	if err != nil {
+		return err
+	}
+
+	for k, v := range c.mapJSON {
+		b.Reset()
+		w.Reset(b)
+
+		if err = json.NewEncoder(w).Encode(v); err != nil {
+			return err
+		}
+
+		if err = w.Close(); err != nil {
+			return err
+		}
+		fmt.Println(k)
+		if err = c.pushGzip(b); err != nil {
+			return err
+		}
+
+		//if err = ioutil.WriteFile(strings.Replace(k, ".zip", ".json", -1)+".gz", b.Bytes(), 0666); err != nil {
+		//	return err
+		//}
+	}
+
 	return nil
 }
 
@@ -249,7 +325,7 @@ func (c *cmdBel) pushGzip(r io.Reader) error {
 	if err = res.Body.Close(); err != nil {
 		return err
 	}
-
+	fmt.Println(res.StatusCode)
 	if res.StatusCode >= 300 {
 		return fmt.Errorf("bel: push failed with code %d", res.StatusCode)
 	}
@@ -299,6 +375,20 @@ func (d *cp866Decoder) Decode(in []byte) ([]byte, error) {
 func castToStringSafely(v interface{}) string {
 	if s, ok := v.(string); ok {
 		return strings.TrimSpace(s)
+	}
+	return ""
+}
+
+func castToFloat64Safely(v interface{}) float64 {
+	if f, ok := v.(float64); ok {
+		return f
+	}
+	return 0.0
+}
+
+func castToTimeStringSafely(v interface{}) string {
+	if t, ok := v.(time.Time); ok {
+		return t.Format("02.01.2006")
 	}
 	return ""
 }

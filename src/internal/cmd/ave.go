@@ -149,9 +149,9 @@ func (c *cmdAVE) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 		goto fail
 	}
 
-	//if err = c.deleteZIPs(walkWay...); err != nil {
-	//	goto Fail
-	//}
+	if err = c.deleteZIPs(); err != nil {
+		goto fail
+	}
 
 	return subcommands.ExitSuccess
 
@@ -197,8 +197,12 @@ func (c *cmdAVE) downloadZIPs() error {
 	return nil
 }
 
-func (c *cmdAVE) deleteZIPs(file ...string) error {
-	return ftp.Delete(c.flagFTP, file...)
+func (c *cmdAVE) deleteZIPs() error {
+	f := make([]string, 0, len(c.mapFile))
+	for k, _ := range c.mapFile {
+		f = append(f, k)
+	}
+	return ftp.Delete(c.flagFTP, f...)
 }
 
 func (c *cmdAVE) transformCSVs(file ...string) error {
