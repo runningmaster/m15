@@ -2,7 +2,7 @@
 Description=run main-foz.service
 
 [Timer]
-OnCalendar=0*:15/2:00
+OnCalendar=0/2:00
 Unit=main-foz.service
 
 [Install]
