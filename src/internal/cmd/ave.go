@@ -155,7 +155,10 @@ func (c *cmdAVE) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 	return subcommands.ExitSuccess
 
 fail:
-	log.Println(c.sendError(err))
+	log.Println(err)
+	if err = c.sendError(err); err != nil {
+		log.Println(err)
+	}
 	return subcommands.ExitFailure
 }
 
