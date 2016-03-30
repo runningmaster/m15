@@ -120,6 +120,7 @@ func (c *cmdAVE) Usage() string {
 func (c *cmdAVE) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&c.flagFTP, "ftp", "", "network address for FTP server 'ftp://user:pass@host:port'")
 	f.StringVar(&c.flagWEB, "web", "", "network address for WEB server 'scheme://domain.com'")
+
 	f.StringVar(&c.flagKey, "key", "", "service key")
 	f.StringVar(&c.flagTag, "tag", "", "service tag")
 
