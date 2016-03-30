@@ -8,4 +8,5 @@ import (
 func Register() {
 	subcommands.Register(ave, "")
 	subcommands.Register(foz, "")
+	subcommands.Register(bel, "")
 }

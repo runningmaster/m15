@@ -1,0 +1,9 @@
+[Unit]
+Description=run main-bel.service
+
+[Timer]
+OnCalendar=01:10
+Unit=main-bel.service
+
+[Install]
+WantedBy=timers.target

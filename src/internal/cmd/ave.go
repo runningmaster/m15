@@ -108,7 +108,7 @@ func (c *cmdAVE) Name() string {
 
 // Synopsis returns a short string (less than one line) describing the command.
 func (c *cmdAVE) Synopsis() string {
-	return "download, transform and send to skynet 3 zip(csv) files from ftp"
+	return "download, transform and send to skynet zip(csv) files from ftp"
 }
 
 // Usage returns a long string explaining the command and giving usage information.
