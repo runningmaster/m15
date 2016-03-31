@@ -31,6 +31,7 @@ import (
 var (
 	bel = &cmdBel{
 		mapFile: make(map[string]ftp.Filer, 100),
+		mapDele: make(map[string][]string, 100),
 		mapJSON: make(map[string]interface{}, 100),
 		httpCli: &http.Client{
 			Transport: &http.Transport{
@@ -86,10 +87,8 @@ type cmdBel struct {
 	flagMFm string
 	flagMTo string
 	mapFile map[string]ftp.Filer
+	mapDele map[string][]string // for clean up
 	mapJSON map[string]interface{}
-	//mapShop map[string]shop
-	//mapDrug map[string]drug
-	//mapProp map[string][]prop
 	httpCli *http.Client
 	httpCtx context.Context
 	httpUsr string
@@ -186,6 +185,7 @@ func (c *cmdBel) downloadZIPs() error {
 				return v.Error
 			}
 			c.mapFile[v.File.Name()] = v.File
+			c.mapDele[splitFlag[i]] = append(c.mapDele[splitFlag[i]], v.File.Name())
 		}
 	}
 
@@ -193,11 +193,12 @@ func (c *cmdBel) downloadZIPs() error {
 }
 
 func (c *cmdBel) deleteZIPs() error {
-	//	f := make([]string, 0, len(c.mapFile))
-	//	for k := range c.mapFile {
-	//		f = append(f, k)
-	//	}
-	//	return ftp.Delete(c.flagFTP, f...)
+	for k, v := range c.mapDele {
+		if v == nil {
+			continue
+		}
+		return ftp.Delete(k, v...)
+	}
 	return nil // FIXME bug is here
 }
 
