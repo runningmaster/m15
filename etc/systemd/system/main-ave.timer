@@ -2,7 +2,7 @@
 Description=run main-ave.service
 
 [Timer]
-OnCalendar=10:10:00
+OnCalendar=13:10:00
 Unit=main-ave.service
 
 [Install]
