@@ -141,7 +141,7 @@ func (c *cmdAVE) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 		goto fail
 	}
 
-	if err = c.transformCSVs(walkWay...); err != nil {
+	if err = c.transformCSVs(); err != nil {
 		goto fail
 	}
 
@@ -199,18 +199,18 @@ func (c *cmdAVE) downloadZIPs() error {
 
 func (c *cmdAVE) deleteZIPs() error {
 	f := make([]string, 0, len(c.mapFile))
-	for k, _ := range c.mapFile {
+	for k := range c.mapFile {
 		f = append(f, k)
 	}
 	return ftp.Delete(c.flagFTP, f...)
 }
 
-func (c *cmdAVE) transformCSVs(file ...string) error {
-	for i := range file {
-		s := file[i]
+func (c *cmdAVE) transformCSVs() error {
+	for i := range walkWay {
+		s := walkWay[i]
 		f, ok := c.mapFile[s]
 		if !ok {
-			return fmt.Errorf("cmd: ave: file not found '%v'", s)
+			return fmt.Errorf("ave: file not found '%v'", s)
 		}
 
 		rc, err := zip.ExtractFile(f, f.Size())
@@ -218,8 +218,8 @@ func (c *cmdAVE) transformCSVs(file ...string) error {
 			return err
 		}
 
-		cvsMiner := csv.MineRecords(txt.Win1251ToUTF8(rc), ';', 1)
-		for v := range cvsMiner {
+		vCh := csv.NewRecordChan(txt.Win1251ToUTF8(rc), ';', 1)
+		for v := range vCh {
 			if v.Error != nil {
 				continue
 			}

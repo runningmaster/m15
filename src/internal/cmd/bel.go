@@ -193,11 +193,12 @@ func (c *cmdBel) downloadZIPs() error {
 }
 
 func (c *cmdBel) deleteZIPs() error {
-	f := make([]string, 0, len(c.mapFile))
-	for k, _ := range c.mapFile {
-		f = append(f, k)
-	}
-	return ftp.Delete(c.flagFTP, f...)
+	//	f := make([]string, 0, len(c.mapFile))
+	//	for k := range c.mapFile {
+	//		f = append(f, k)
+	//	}
+	//	return ftp.Delete(c.flagFTP, f...)
+	return nil // FIXME bug is here
 }
 
 func (c *cmdBel) transformDBFs() error {
@@ -279,7 +280,7 @@ func (c *cmdBel) uploadGzipJSONs() error {
 		return err
 	}
 
-	for k, v := range c.mapJSON {
+	for _, v := range c.mapJSON {
 		b.Reset()
 		w.Reset(b)
 
@@ -290,7 +291,7 @@ func (c *cmdBel) uploadGzipJSONs() error {
 		if err = w.Close(); err != nil {
 			return err
 		}
-		fmt.Println(k)
+
 		if err = c.pushGzip(b); err != nil {
 			return err
 		}
@@ -325,7 +326,7 @@ func (c *cmdBel) pushGzip(r io.Reader) error {
 	if err = res.Body.Close(); err != nil {
 		return err
 	}
-	fmt.Println(res.StatusCode)
+
 	if res.StatusCode >= 300 {
 		return fmt.Errorf("bel: push failed with code %d", res.StatusCode)
 	}

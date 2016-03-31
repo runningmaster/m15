@@ -5,15 +5,29 @@ import (
 	"io"
 )
 
-// MineRecords allows to work with cvs records in a pipe style
-func MineRecords(f io.Reader, comma rune, skip int) <-chan struct {
+// NewRecordChan allows to work with cvs records in a pipe style
+func NewRecordChan(f io.Reader, comma rune, skip int) <-chan struct {
 	Record []string
 	Error  error
 } {
-	pipe := make(chan struct {
-		Record []string
-		Error  error
-	})
+	var (
+		pipe = make(chan struct {
+			Record []string
+			Error  error
+		})
+		makeResult = func(rec []string, err error) struct {
+			Record []string
+			Error  error
+		} {
+			return struct {
+				Record []string
+				Error  error
+			}{
+				rec,
+				err,
+			}
+		}
+	)
 
 	go func() {
 		defer close(pipe)
@@ -31,7 +45,7 @@ func MineRecords(f io.Reader, comma rune, skip int) <-chan struct {
 				if err == io.EOF {
 					break
 				}
-				pipe <- makeRecord(nil, err)
+				pipe <- makeResult(nil, err)
 				continue
 			}
 
@@ -40,22 +54,9 @@ func MineRecords(f io.Reader, comma rune, skip int) <-chan struct {
 				continue
 			}
 
-			pipe <- makeRecord(rec, nil)
+			pipe <- makeResult(rec, nil)
 		}
 	}()
 
 	return pipe
-}
-
-func makeRecord(rec []string, err error) struct {
-	Record []string
-	Error  error
-} {
-	return struct {
-		Record []string
-		Error  error
-	}{
-		rec,
-		err,
-	}
 }

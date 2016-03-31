@@ -83,13 +83,14 @@ func readFile(c *ftp.ServerConn, name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if body != nil {
+			_ = body.Close()
+		}
+	}()
 
 	data, err := ioutil.ReadAll(body)
 	if err != nil {
-		return nil, err
-	}
-
-	if err = body.Close(); err != nil {
 		return nil, err
 	}
 
@@ -102,7 +103,11 @@ func Delete(addr string, name ...string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = c.Quit() }()
+	defer func() {
+		if c != nil {
+			_ = c.Quit()
+		}
+	}()
 
 	for i := range name {
 		if err = c.Delete(name[i]); err != nil {
