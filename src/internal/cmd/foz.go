@@ -130,7 +130,7 @@ func (c *cmdFOZ) downloadAndPushGzips() error {
 		func(name string) bool {
 			return strings.HasPrefix(strings.ToLower(filepath.Ext(name)), ".gz")
 		},
-		true,
+		false, // FIXME
 	)
 
 	var err error
