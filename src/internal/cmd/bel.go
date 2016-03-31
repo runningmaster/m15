@@ -199,7 +199,7 @@ func (c *cmdBel) deleteZIPs() error {
 		}
 		return ftp.Delete(k, v...)
 	}
-	return nil // FIXME bug is here
+	return nil
 }
 
 func (c *cmdBel) transformDBFs() error {
