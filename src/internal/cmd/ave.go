@@ -2,12 +2,9 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -17,13 +14,10 @@ import (
 	"internal/encoding/txt"
 	"internal/log"
 	"internal/net/ftp"
-	"internal/net/mail"
-	"internal/version"
 
 	"github.com/google/subcommands"
 	"github.com/klauspost/compress/gzip"
 	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 )
 
 const (
@@ -41,96 +35,21 @@ var (
 	fileTov = fmt.Sprintf("tov_%s.zip", timeFmt)  // magic file name
 	fileOst = fmt.Sprintf("ost_%s.zip", timeFmt)  // magic file name
 	walkWay = []string{fileApt, fileTov, fileOst} // strong order files
+)
 
-	ave = &cmdAVE{
+func newCmdAve() *cmdAve {
+	cmd := &cmdAve{
 		mapFile: make(map[string]ftp.Filer, capFile),
 		mapShop: make(map[string]shop, capShop),
 		mapDrug: make(map[string]drug, capDrug),
 		mapProp: make(map[string][]prop, capProp),
-		httpCli: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true, // workaround
-				},
-			},
-		},
-		httpCtx: context.Background(),
-		httpUsr: fmt.Sprintf("%s %s", version.Stamp.AppName(), version.Stamp.Extended()),
 	}
-)
-
-type shop struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Head string `json:"head"`
-	Addr string `json:"addr"`
-	Code string `json:"code"`
-}
-
-type drug struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
-type prop struct {
-	ID    string  `json:"id"`
-	Name  string  `json:"name"`
-	Quant float64 `json:"quant"`
-	Price float64 `json:"price"`
-}
-
-type price struct {
-	Meta shop   `json:"meta"`
-	Data []prop `json:"data"`
-}
-
-type cmdAVE struct {
-	flagFTP string
-	flagWEB string
-	flagKey string
-	flagTag string
-	flagMGn string
-	flagMFm string
-	flagMTo string
-	mapFile map[string]ftp.Filer
-	mapShop map[string]shop
-	mapDrug map[string]drug
-	mapProp map[string][]prop
-	httpCli *http.Client
-	httpCtx context.Context
-	httpUsr string
-}
-
-// Name returns the name of the command.
-func (c *cmdAVE) Name() string {
-	return "ave"
-}
-
-// Synopsis returns a short string (less than one line) describing the command.
-func (c *cmdAVE) Synopsis() string {
-	return "download, transform and send to skynet zip(csv) files from ftp"
-}
-
-// Usage returns a long string explaining the command and giving usage information.
-func (c *cmdAVE) Usage() string {
-	return fmt.Sprintf("%s %s", version.Stamp.AppName(), c.Name())
-}
-
-// SetFlags adds the flags for this command to the specified set.
-func (c *cmdAVE) SetFlags(f *flag.FlagSet) {
-	f.StringVar(&c.flagFTP, "ftp", "", "network address for FTP server 'ftp://user:pass@host:port'")
-	f.StringVar(&c.flagWEB, "web", "", "network address for WEB server 'scheme://domain.com'")
-
-	f.StringVar(&c.flagKey, "key", "", "service key")
-	f.StringVar(&c.flagTag, "tag", "", "service tag")
-
-	f.StringVar(&c.flagMGn, "mgn", "", "Mailgun service 'mail://key@box.mailgun.org'")
-	f.StringVar(&c.flagMFm, "mfm", "noreplay@example.com", "Mailgun from")
-	f.StringVar(&c.flagMTo, "mto", "", "Mailgun to")
+	cmd.initBase("ave", "download, transform and send to skynet zip(csv) files from ftp")
+	return cmd
 }
 
 // Execute executes the command and returns an ExitStatus.
-func (c *cmdAVE) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
+func (c *cmdAve) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
 	var err error
 
 	if err = c.failFast(); err != nil {
@@ -163,22 +82,7 @@ fail:
 	return subcommands.ExitFailure
 }
 
-func (c *cmdAVE) sendError(err error) error {
-	if c.flagMGn != "" {
-		if err = mail.Send(
-			c.flagMGn,
-			c.flagMFm,
-			fmt.Sprintf("ERROR [%s]", c.Name()),
-			fmt.Sprintf("%v: version %v: %v", time.Now(), version.Stamp.Extended(), err),
-			c.flagMTo,
-		); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c *cmdAVE) downloadZIPs() error {
+func (c *cmdAve) downloadZIPs() error {
 	vCh := ftp.NewFileChan(
 		c.flagFTP,
 		func(name string) bool {
@@ -197,7 +101,7 @@ func (c *cmdAVE) downloadZIPs() error {
 	return nil
 }
 
-func (c *cmdAVE) deleteZIPs() error {
+func (c *cmdAve) deleteZIPs() error {
 	f := make([]string, 0, len(c.mapFile))
 	for k := range c.mapFile {
 		f = append(f, k)
@@ -205,7 +109,7 @@ func (c *cmdAVE) deleteZIPs() error {
 	return ftp.Delete(c.flagFTP, f...)
 }
 
-func (c *cmdAVE) transformCSVs() error {
+func (c *cmdAve) transformCSVs() error {
 	for i := range walkWay {
 		s := walkWay[i]
 		f, ok := c.mapFile[s]
@@ -238,7 +142,7 @@ func (c *cmdAVE) transformCSVs() error {
 }
 
 // cvs scheme (apt): [0]codeapt [1]brendname [2]adressapt [3]regimname
-func (c *cmdAVE) parseRecordApt(r []string) {
+func (c *cmdAve) parseRecordApt(r []string) {
 	s := shop{
 		ID:   r[0],
 		Name: r[1],
@@ -255,7 +159,7 @@ func (c *cmdAVE) parseRecordApt(r []string) {
 }
 
 // cvs scheme (tov): [0]code [1]barname [2]brand [3]grpname [4]grpcode
-func (c *cmdAVE) parseRecordTov(r []string) {
+func (c *cmdAve) parseRecordTov(r []string) {
 	d := drug{
 		ID:   r[0],
 		Name: r[1],
@@ -265,7 +169,7 @@ func (c *cmdAVE) parseRecordTov(r []string) {
 }
 
 // cvs scheme (ost): [0]codegood [1]codeapt [2]qnt [3]pricesale
-func (c *cmdAVE) parseRecordOst(r []string) {
+func (c *cmdAve) parseRecordOst(r []string) {
 	s, ok := c.mapShop[r[1]]
 	if !ok {
 		return
@@ -286,12 +190,7 @@ func (c *cmdAVE) parseRecordOst(r []string) {
 	c.mapProp[s.ID] = append(c.mapProp[s.ID], p)
 }
 
-func mustParseFloat64(s string) float64 {
-	f, _ := strconv.ParseFloat(s, 64)
-	return f
-}
-
-func (c *cmdAVE) uploadGzipJSONs() error {
+func (c *cmdAve) uploadGzipJSONs() error {
 	b := &bytes.Buffer{}
 
 	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
@@ -316,7 +215,7 @@ func (c *cmdAVE) uploadGzipJSONs() error {
 			return err
 		}
 
-		if err = c.pushGzip(b); err != nil {
+		if err = c.pushGzipV2(b); err != nil {
 			return err
 		}
 	}
@@ -324,59 +223,45 @@ func (c *cmdAVE) uploadGzipJSONs() error {
 	return nil
 }
 
-func (c *cmdAVE) pushGzip(r io.Reader) error {
-	ctx, _ := context.WithTimeout(c.httpCtx, 30*time.Second)
-	cli := c.httpCli
-	url := c.makeURL("/data/add")
+// Util funcs
 
-	req, err := http.NewRequest("POST", url, r)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Encoding", "application/x-gzip")
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("User-Agent", c.httpUsr)
-	req.Header.Set("X-Morion-Skynet-Key", c.flagKey)
-	req.Header.Set("X-Morion-Skynet-Tag", c.flagTag)
-
-	res, err := ctxhttp.Do(ctx, cli, req)
-	if err != nil {
-		return err
-	}
-
-	if err = res.Body.Close(); err != nil {
-		return err
-	}
-
-	if res.StatusCode >= 300 {
-		return fmt.Errorf("ave: push failed with code %d", res.StatusCode)
-	}
-
-	return nil
+func mustParseFloat64(s string) float64 {
+	f, _ := strconv.ParseFloat(s, 64)
+	return f
 }
 
-func (c *cmdAVE) failFast() error {
-	ctx, _ := context.WithTimeout(c.httpCtx, 5*time.Second)
-	cli := c.httpCli
-	url := c.makeURL("/ping")
+// Data structs
 
-	res, err := ctxhttp.Get(ctx, cli, url)
-	if err != nil {
-		return err
-	}
-
-	if err = res.Body.Close(); err != nil {
-		return err
-	}
-
-	if res.StatusCode >= 300 {
-		return fmt.Errorf("ave: fail fast with code %d", res.StatusCode)
-	}
-
-	return nil
+type shop struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Head string `json:"head"`
+	Addr string `json:"addr"`
+	Code string `json:"code"`
 }
 
-func (c *cmdAVE) makeURL(path string) string {
-	return c.flagWEB + path
+type drug struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type prop struct {
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Quant float64 `json:"quant"`
+	Price float64 `json:"price"`
+}
+
+type price struct {
+	Meta shop   `json:"meta"`
+	Data []prop `json:"data"`
+}
+
+type cmdAve struct {
+	cmdBase
+
+	mapFile map[string]ftp.Filer
+	mapShop map[string]shop
+	mapDrug map[string]drug
+	mapProp map[string][]prop
 }

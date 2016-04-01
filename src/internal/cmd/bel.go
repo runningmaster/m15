@@ -2,13 +2,10 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"net/http"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -16,110 +13,31 @@ import (
 	"internal/archive/zip"
 	"internal/log"
 	"internal/net/ftp"
-	"internal/net/mail"
-	"internal/version"
 
 	dbf "github.com/CentaurWarchief/godbf"
 	"github.com/google/subcommands"
 	"github.com/klauspost/compress/gzip"
 	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
 )
 
-var (
-	bel = &cmdBel{
-		mapFile: make(map[string]ftp.Filer, 100),
-		mapDele: make(map[string][]string, 100),
-		mapJSON: make(map[string]interface{}, 100),
-		httpCli: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true, // workaround
-				},
-			},
-		},
-		httpCtx: context.Background(),
-		httpUsr: fmt.Sprintf("%s %s", version.Stamp.AppName(), version.Stamp.Extended()),
-	}
-)
-
-type meta struct {
-	Timestamp   string `json:",omitempty"`
-	TRangeLower string `json:",omitempty"`
-	TRangeUpper string `json:",omitempty"`
-}
-
-type item struct {
-	Code     string  `json:",omitempty"`
-	Drug     string  `json:",omitempty"`
-	QuantInp float64 `json:",omitempty"`
-	QuantOut float64 `json:",omitempty"`
-	PriceInp float64 `json:",omitempty"`
-	PriceOut float64 `json:",omitempty"`
-	PriceRoc float64 `json:",omitempty"`
-	Balance  float64 `json:",omitempty"`
-	BalanceT float64 `json:",omitempty"`
-}
-
-type head struct {
-	Source    string `json:",omitempty"`
-	Drugstore string `json:",omitempty"`
-}
-
-type data struct {
-	Head head   `json:",omitempty"`
-	Item []item `json:",omitempty"`
-}
-
-type priceOld struct {
-	Meta meta   `json:",omitempty"`
-	Data []data `json:",omitempty"`
-}
-
 type cmdBel struct {
-	flagFTP string
-	flagWEB string
-	flagKey string
-	flagTag string
-	flagMGn string
-	flagMFm string
-	flagMTo string
+	cmdBase
+
 	mapFile map[string]ftp.Filer
 	mapDele map[string][]string // for clean up
 	mapJSON map[string]interface{}
-	httpCli *http.Client
-	httpCtx context.Context
-	httpUsr string
 }
 
-// Name returns the name of the command.
-func (c *cmdBel) Name() string {
-	return "bel"
-}
-
-// Synopsis returns a short string (less than one line) describing the command.
-func (c *cmdBel) Synopsis() string {
-	return "download, transform and send to skynet zip(dbf) files from ftp"
-}
-
-// Usage returns a long string explaining the command and giving usage information.
-func (c *cmdBel) Usage() string {
-	return fmt.Sprintf("%s %s", version.Stamp.AppName(), c.Name())
-}
-
-// SetFlags adds the flags for this command to the specified set.
-func (c *cmdBel) SetFlags(f *flag.FlagSet) {
-	f.StringVar(&c.flagFTP, "ftp", "", "network address for FTP server 'ftp://user:pass@host:port[,...]'")
-	f.StringVar(&c.flagWEB, "web", "", "network address for WEB server 'scheme://domain.com'")
-
-	f.StringVar(&c.flagKey, "key", "", "service key")
-	f.StringVar(&c.flagTag, "tag", "", "service tag")
-
-	f.StringVar(&c.flagMGn, "mgn", "", "Mailgun service 'mail://key@box.mailgun.org'")
-	f.StringVar(&c.flagMFm, "mfm", "noreplay@example.com", "Mailgun from")
-	f.StringVar(&c.flagMTo, "mto", "", "Mailgun to")
+func newCmdBel() *cmdBel {
+	cmd := &cmdBel{
+		mapFile: make(map[string]ftp.Filer, 100),
+		mapDele: make(map[string][]string, 100),
+		mapJSON: make(map[string]interface{}, 100),
+	}
+	cmd.initBase("bel", "download, transform and send to skynet zip(dbf) files from ftp")
+	return cmd
 }
 
 // Execute executes the command and returns an ExitStatus.
@@ -142,9 +60,9 @@ func (c *cmdBel) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 		goto fail
 	}
 
-	if err = c.deleteZIPs(); err != nil {
-		goto fail
-	}
+	//if err = c.deleteZIPs(); err != nil {
+	//	goto fail
+	//}
 
 	return subcommands.ExitSuccess
 
@@ -156,28 +74,13 @@ fail:
 	return subcommands.ExitFailure
 }
 
-func (c *cmdBel) sendError(err error) error {
-	if c.flagMGn != "" {
-		if err = mail.Send(
-			c.flagMGn,
-			c.flagMFm,
-			fmt.Sprintf("ERROR [%s]", c.Name()),
-			fmt.Sprintf("%v: version %v: %v", time.Now(), version.Stamp.Extended(), err),
-			c.flagMTo,
-		); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (c *cmdBel) downloadZIPs() error {
 	splitFlag := strings.Split(c.flagFTP, ",")
 	for i := range splitFlag {
 		vCh := ftp.NewFileChan(
 			splitFlag[i],
 			nil,
-			false,
+			true,
 		)
 
 		for v := range vCh {
@@ -293,7 +196,7 @@ func (c *cmdBel) uploadGzipJSONs() error {
 			return err
 		}
 
-		if err = c.pushGzip(b); err != nil {
+		if err = c.pushGzipV1(b); err != nil {
 			return err
 		}
 
@@ -305,60 +208,7 @@ func (c *cmdBel) uploadGzipJSONs() error {
 	return nil
 }
 
-func (c *cmdBel) pushGzip(r io.Reader) error {
-	ctx, _ := context.WithTimeout(c.httpCtx, 30*time.Second)
-	cli := c.httpCli
-	url := c.makeURL("/data/add" + "?key=" + c.flagKey)
-
-	req, err := http.NewRequest("POST", url, r)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Encoding", "application/x-gzip")
-	req.Header.Set("Content-Type", "application/json; charset=utf-8; hashtag="+c.flagTag)
-	req.Header.Set("User-Agent", c.httpUsr)
-
-	res, err := ctxhttp.Do(ctx, cli, req)
-	if err != nil {
-		return err
-	}
-
-	if err = res.Body.Close(); err != nil {
-		return err
-	}
-
-	if res.StatusCode >= 300 {
-		return fmt.Errorf("bel: push failed with code %d", res.StatusCode)
-	}
-
-	return nil
-}
-
-func (c *cmdBel) failFast() error {
-	ctx, _ := context.WithTimeout(c.httpCtx, 5*time.Second)
-	cli := c.httpCli
-	url := c.makeURL("/ping")
-
-	res, err := ctxhttp.Get(ctx, cli, url)
-	if err != nil {
-		return err
-	}
-
-	if err = res.Body.Close(); err != nil {
-		return err
-	}
-
-	if res.StatusCode >= 300 {
-		return fmt.Errorf("bel: fail fast with code %d", res.StatusCode)
-	}
-
-	return nil
-}
-
-func (c *cmdBel) makeURL(path string) string {
-	return c.flagWEB + path
-}
+// Util funcs
 
 type cp866Decoder struct{}
 
@@ -393,4 +243,39 @@ func castToTimeStringSafely(v interface{}) string {
 		return t.Format("02.01.2006")
 	}
 	return ""
+}
+
+// Data structs
+
+type meta struct {
+	Timestamp   string `json:",omitempty"`
+	TRangeLower string `json:",omitempty"`
+	TRangeUpper string `json:",omitempty"`
+}
+
+type item struct {
+	Code     string  `json:",omitempty"`
+	Drug     string  `json:",omitempty"`
+	QuantInp float64 `json:",omitempty"`
+	QuantOut float64 `json:",omitempty"`
+	PriceInp float64 `json:",omitempty"`
+	PriceOut float64 `json:",omitempty"`
+	PriceRoc float64 `json:",omitempty"`
+	Balance  float64 `json:",omitempty"`
+	BalanceT float64 `json:",omitempty"`
+}
+
+type head struct {
+	Source    string `json:",omitempty"`
+	Drugstore string `json:",omitempty"`
+}
+
+type data struct {
+	Head head   `json:",omitempty"`
+	Item []item `json:",omitempty"`
+}
+
+type priceOld struct {
+	Meta meta   `json:",omitempty"`
+	Data []data `json:",omitempty"`
 }
