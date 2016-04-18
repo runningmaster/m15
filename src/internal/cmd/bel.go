@@ -42,25 +42,28 @@ func newCmdBel() *cmdBel {
 
 // Execute executes the command and returns an ExitStatus.
 func (c *cmdBel) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
-	var err error
-
-	if err = c.failFast(); err != nil {
+	err := c.failFast()
+	if err != nil {
 		goto fail
 	}
 
-	if err = c.downloadZIPs(); err != nil {
+	err = c.downloadZIPs()
+	if err != nil {
 		goto fail
 	}
 
-	if err = c.transformDBFs(); err != nil {
+	err = c.transformDBFs()
+	if err != nil {
 		goto fail
 	}
 
-	if err = c.uploadGzipJSONs(); err != nil {
+	err = c.uploadGzipJSONs()
+	if err != nil {
 		goto fail
 	}
 
-	//if err = c.deleteZIPs(); err != nil {
+	//err = c.deleteZIPs()
+	//if err != nil {
 	//	goto fail
 	//}
 
@@ -68,9 +71,11 @@ func (c *cmdBel) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 
 fail:
 	log.Println(err)
-	if err = c.sendError(err); err != nil {
+	err = c.sendError(err)
+	if err != nil {
 		log.Println(err)
 	}
+
 	return subcommands.ExitFailure
 }
 
@@ -102,6 +107,7 @@ func (c *cmdBel) deleteZIPs() error {
 		}
 		return ftp.Delete(k, v...)
 	}
+
 	return nil
 }
 
@@ -173,6 +179,7 @@ func (c *cmdBel) transformDBFs() error {
 			},
 		}
 	}
+
 	return nil
 }
 
@@ -188,19 +195,23 @@ func (c *cmdBel) uploadGzipJSONs() error {
 		b.Reset()
 		w.Reset(b)
 
-		if err = json.NewEncoder(w).Encode(v); err != nil {
+		err = json.NewEncoder(w).Encode(v)
+		if err != nil {
 			return err
 		}
 
-		if err = w.Close(); err != nil {
+		err = w.Close()
+		if err != nil {
 			return err
 		}
 
-		if err = c.pushGzipV1(b); err != nil {
+		err = c.pushGzipV1(b)
+		if err != nil {
 			return err
 		}
 
-		//if err = ioutil.WriteFile(strings.Replace(k, ".zip", ".json", -1)+".gz", b.Bytes(), 0666); err != nil {
+		//err = ioutil.WriteFile(strings.Replace(k, ".zip", ".json", -1)+".gz", b.Bytes(), 0666)
+		//if err != nil {
 		//	return err
 		//}
 	}
@@ -228,6 +239,7 @@ func castToStringSafely(v interface{}) string {
 	if s, ok := v.(string); ok {
 		return strings.TrimSpace(s)
 	}
+
 	return ""
 }
 
@@ -235,6 +247,7 @@ func castToFloat64Safely(v interface{}) float64 {
 	if f, ok := v.(float64); ok {
 		return f
 	}
+
 	return 0.0
 }
 
@@ -242,6 +255,7 @@ func castToTimeStringSafely(v interface{}) string {
 	if t, ok := v.(time.Time); ok {
 		return t.Format("02.01.2006")
 	}
+
 	return ""
 }
 

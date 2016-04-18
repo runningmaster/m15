@@ -25,13 +25,13 @@ func newCmdFoz() *cmdFoz {
 
 // Execute executes the command and returns an ExitStatus.
 func (c *cmdFoz) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
-	var err error
-
-	if err = c.failFast(); err != nil {
+	err := c.failFast()
+	if err != nil {
 		goto fail
 	}
 
-	if err = c.downloadAndPushGzips(); err != nil {
+	err = c.downloadAndPushGzips()
+	if err != nil {
 		goto fail
 	}
 
@@ -39,9 +39,11 @@ func (c *cmdFoz) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 
 fail:
 	log.Println(err)
-	if err = c.sendError(err); err != nil {
+	err = c.sendError(err)
+	if err != nil {
 		log.Println(err)
 	}
+
 	return subcommands.ExitFailure
 }
 
@@ -54,7 +56,6 @@ func (c *cmdFoz) downloadAndPushGzips() error {
 		true,
 	)
 
-	var err error
 	for v := range vCh {
 		if v.Error != nil {
 			return v.Error
@@ -64,7 +65,8 @@ func (c *cmdFoz) downloadAndPushGzips() error {
 			c.flagKey, c.flagTag = key, tag
 		}
 
-		if err = c.pushGzipV1(v.File); err != nil {
+		err := c.pushGzipV1(v.File)
+		if err != nil {
 			return err
 		}
 	}
@@ -79,7 +81,8 @@ func extractKeyTag(s string) (key string, tag string, ok bool) {
 		Tag string `json:"tag"`
 	}{}
 
-	if err := json.NewDecoder(strings.NewReader(s)).Decode(&subj); err != nil {
+	err := json.NewDecoder(strings.NewReader(s)).Decode(&subj)
+	if err != nil {
 		return "", "", false
 	}
 

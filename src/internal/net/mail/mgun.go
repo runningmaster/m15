@@ -35,7 +35,8 @@ func SendFile(addr, from, subj, text, name string, file io.ReadCloser, to ...str
 		msg.AddReaderAttachment(name, file)
 	}
 
-	if _, _, err = mgn.Send(msg); err != nil {
+	_, _, err = mgn.Send(msg)
+	if err != nil {
 		return err
 	}
 

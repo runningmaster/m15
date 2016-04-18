@@ -64,7 +64,8 @@ func newFTP(addr string) (*ftp.ServerConn, error) {
 		return nil, err
 	}
 
-	if err = c.Login(user, pass); err != nil {
+	err = c.Login(user, pass)
+	if err != nil {
 		return nil, err
 	}
 
@@ -110,7 +111,8 @@ func Delete(addr string, name ...string) error {
 	}()
 
 	for i := range name {
-		if err = c.Delete(name[i]); err != nil {
+		err = c.Delete(name[i])
+		if err != nil {
 			return err
 		}
 	}
@@ -154,11 +156,13 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 			close(pipe)
 		}()
 
-		if c, err = newFTP(addr); err != nil {
+		c, err = newFTP(addr)
+		if err != nil {
 			goto fail
 		}
 
-		if l, err = c.List("."); err != nil {
+		l, err = c.List(".")
+		if err != nil {
 			goto fail
 		}
 
@@ -167,13 +171,14 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 				continue
 			}
 
-			var b []byte
-			if b, err = readFile(c, v.Name); err != nil {
+			b, err := readFile(c, v.Name)
+			if err != nil {
 				goto fail
 			}
 
 			if cleanup {
-				if err = c.Delete(v.Name); err != nil {
+				err = c.Delete(v.Name)
+				if err != nil {
 					goto fail
 				}
 			}
@@ -187,6 +192,7 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 				nil,
 			)
 		}
+
 		return // success
 	fail:
 		pipe <- makeResult(nil, err)

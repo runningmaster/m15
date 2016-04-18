@@ -35,13 +35,10 @@ func NewRecordChan(f io.Reader, comma rune, skip int) <-chan struct {
 		r := csv.NewReader(f)
 		r.Comma = comma
 
-		var (
-			n   int
-			rec []string
-			err error
-		)
+		var n int
 		for {
-			if rec, err = r.Read(); err != nil {
+			rec, err := r.Read()
+			if err != nil {
 				if err == io.EOF {
 					break
 				}

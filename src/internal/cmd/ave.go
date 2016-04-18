@@ -50,25 +50,28 @@ func newCmdAve() *cmdAve {
 
 // Execute executes the command and returns an ExitStatus.
 func (c *cmdAve) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
-	var err error
-
-	if err = c.failFast(); err != nil {
+	err := c.failFast()
+	if err != nil {
 		goto fail
 	}
 
-	if err = c.downloadZIPs(); err != nil {
+	err = c.downloadZIPs()
+	if err != nil {
 		goto fail
 	}
 
-	if err = c.transformCSVs(); err != nil {
+	err = c.transformCSVs()
+	if err != nil {
 		goto fail
 	}
 
-	if err = c.uploadGzipJSONs(); err != nil {
+	err = c.uploadGzipJSONs()
+	if err != nil {
 		goto fail
 	}
 
-	if err = c.deleteZIPs(); err != nil {
+	err = c.deleteZIPs()
+	if err != nil {
 		goto fail
 	}
 
@@ -76,9 +79,11 @@ func (c *cmdAve) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 
 fail:
 	log.Println(err)
-	if err = c.sendError(err); err != nil {
+	err = c.sendError(err)
+	if err != nil {
 		log.Println(err)
 	}
+
 	return subcommands.ExitFailure
 }
 
@@ -207,15 +212,18 @@ func (c *cmdAve) uploadGzipJSONs() error {
 		b.Reset()
 		w.Reset(b)
 
-		if err = json.NewEncoder(w).Encode(p); err != nil {
+		err = json.NewEncoder(w).Encode(p)
+		if err != nil {
 			return err
 		}
 
-		if err = w.Close(); err != nil {
+		err = w.Close()
+		if err != nil {
 			return err
 		}
 
-		if err = c.pushGzipV2(b); err != nil {
+		err = c.pushGzipV2(b)
+		if err != nil {
 			return err
 		}
 	}

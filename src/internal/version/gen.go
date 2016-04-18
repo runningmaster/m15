@@ -69,16 +69,16 @@ func main() {
 		prerelease,
 	)
 
-	var (
-		out []byte
-		err error
-	)
-	if out, err = format.Source(buf.Bytes()); err != nil {
+	out, err := format.Source(buf.Bytes())
+	if err != nil {
 		goto Fail
 	}
-	if err = ioutil.WriteFile(flagFile, out, 0644); err != nil {
+
+	err = ioutil.WriteFile(flagFile, out, 0644)
+	if err != nil {
 		goto Fail
 	}
+
 	return // success
 Fail:
 	panic(fmt.Errorf("can not generate %s: %v", flagFile, err))

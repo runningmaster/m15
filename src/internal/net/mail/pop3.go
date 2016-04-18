@@ -103,28 +103,32 @@ func NewMailChan(addr string, cleanup bool) <-chan struct {
 			close(pipe)
 		}()
 
-		if c, err = newPOP3(addr); err != nil {
+		c, err = newPOP3(addr)
+		if err != nil {
 			goto fail
 		}
 
-		if l, _, err = c.ListAll(); err != nil {
+		l, _, err = c.ListAll()
+		if err != nil {
 			goto fail
 		}
 
 		for i := range l {
-			var m string
-			if m, err = c.Retr(l[i]); err != nil {
+			m, err := c.Retr(l[i])
+			if err != nil {
 				goto fail
 			}
 
 			if cleanup {
-				if err = c.Dele(l[i]); err != nil {
+				err = c.Dele(l[i])
+				if err != nil {
 					goto fail
 				}
 			}
 
 			pipe <- makeResult(strings.NewReader(m), nil)
 		}
+
 		return // success
 	fail:
 		pipe <- makeResult(nil, err)
@@ -176,25 +180,24 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 			vCh = NewMailChan(addr, cleanup)
 		)
 		for v := range vCh {
-			if err = v.Error; err != nil {
+			if v.Error != nil {
 				goto fail
 			}
 
-			if m, err = mail.ReadMessage(v.Mail); err != nil {
+			m, err = mail.ReadMessage(v.Mail)
+			if err != nil {
 				goto fail
 			}
 
-			if s, err = findBoundary(m.Header); err != nil {
+			s, err = findBoundary(m.Header)
+			if err != nil {
 				goto fail
 			}
 
-			var (
-				r = multipart.NewReader(m.Body, s) // multipart reader
-				p *multipart.Part
-				b []byte
-			)
+			r := multipart.NewReader(m.Body, s) // multipart reader
 			for {
-				if p, err = r.NextPart(); err != nil {
+				p, err := r.NextPart()
+				if err != nil {
 					if err == io.EOF {
 						break
 					}
@@ -207,7 +210,8 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 					continue
 				}
 
-				if b, err = readFile(p); err != nil {
+				b, err := readFile(p)
+				if err != nil {
 					goto fail
 				}
 
@@ -222,6 +226,7 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 			}
 
 		}
+
 		return // success
 	fail:
 		pipe <- makeResult(nil, err)

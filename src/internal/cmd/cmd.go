@@ -98,7 +98,8 @@ func (c *cmdBase) failFast() error {
 		return err
 	}
 
-	if err = res.Body.Close(); err != nil {
+	err = res.Body.Close()
+	if err != nil {
 		return err
 	}
 
@@ -128,7 +129,8 @@ func (c *cmdBase) pushGzipV1(r io.Reader) error {
 		return err
 	}
 
-	if err = res.Body.Close(); err != nil {
+	err = res.Body.Close()
+	if err != nil {
 		return err
 	}
 
@@ -160,7 +162,8 @@ func (c *cmdBase) pushGzipV2(r io.Reader) error {
 		return err
 	}
 
-	if err = res.Body.Close(); err != nil {
+	err = res.Body.Close()
+	if err != nil {
 		return err
 	}
 
@@ -173,15 +176,17 @@ func (c *cmdBase) pushGzipV2(r io.Reader) error {
 
 func (c *cmdBase) sendError(err error) error {
 	if c.flagMGn != "" {
-		if err = mail.Send(
+		err = mail.Send(
 			c.flagMGn,
 			c.flagMFm,
 			fmt.Sprintf("ERROR [%s]", c.Name()),
 			fmt.Sprintf("%v: version %v: %v", time.Now(), version.Stamp.Extended(), err),
 			c.flagMTo,
-		); err != nil {
+		)
+		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
