@@ -36,11 +36,8 @@ func SendFile(addr, from, subj, text, name string, file io.ReadCloser, to ...str
 	}
 
 	_, _, err = mgn.Send(msg)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 // Send send mail via https://www.mailgun.com/

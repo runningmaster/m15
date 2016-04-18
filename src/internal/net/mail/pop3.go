@@ -94,6 +94,7 @@ func NewMailChan(addr string, cleanup bool) <-chan struct {
 		var (
 			c   *pop3.Client
 			l   []int
+			m   string
 			err error
 		)
 		defer func() {
@@ -114,7 +115,7 @@ func NewMailChan(addr string, cleanup bool) <-chan struct {
 		}
 
 		for i := range l {
-			m, err := c.Retr(l[i])
+			m, err = c.Retr(l[i])
 			if err != nil {
 				goto fail
 			}
@@ -194,9 +195,13 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 				goto fail
 			}
 
-			r := multipart.NewReader(m.Body, s) // multipart reader
+			var (
+				r = multipart.NewReader(m.Body, s) // multipart reader
+				p *multipart.Part
+				b []byte
+			)
 			for {
-				p, err := r.NextPart()
+				p, err = r.NextPart()
 				if err != nil {
 					if err == io.EOF {
 						break
@@ -210,7 +215,7 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 					continue
 				}
 
-				b, err := readFile(p)
+				b, err = readFile(p)
 				if err != nil {
 					goto fail
 				}

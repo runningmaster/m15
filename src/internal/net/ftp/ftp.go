@@ -171,7 +171,8 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 				continue
 			}
 
-			b, err := readFile(c, v.Name)
+			var b []byte
+			b, err = readFile(c, v.Name)
 			if err != nil {
 				goto fail
 			}
