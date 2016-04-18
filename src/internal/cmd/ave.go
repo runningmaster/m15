@@ -185,11 +185,20 @@ func (c *cmdAve) parseRecordOst(r []string) {
 		return
 	}
 
+	quant, err := strconv.ParseFloat(r[2], 64)
+	if err != nil {
+		return
+	}
+	price, err := strconv.ParseFloat(r[3], 64)
+	if err != nil {
+		return
+	}
+
 	p := prop{
 		ID:    d.ID,
 		Name:  d.Name,
-		Quant: mustParseFloat64(r[2]),
-		Price: mustParseFloat64(r[3]),
+		Quant: quant,
+		Price: price,
 	}
 
 	c.mapProp[s.ID] = append(c.mapProp[s.ID], p)
@@ -229,13 +238,6 @@ func (c *cmdAve) uploadGzipJSONs() error {
 	}
 
 	return nil
-}
-
-// Util funcs
-
-func mustParseFloat64(s string) float64 {
-	f, _ := strconv.ParseFloat(s, 64)
-	return f
 }
 
 // Data structs
