@@ -1,4 +1,4 @@
-package cmd
+package subcommands
 
 import (
 	"crypto/tls"
@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"internal/net/mail"
+	"internal/net/mailutil"
 	"internal/version"
 
 	"github.com/google/subcommands"
@@ -176,7 +176,7 @@ func (c *cmdBase) pushGzipV2(r io.Reader) error {
 
 func (c *cmdBase) sendError(err error) error {
 	if c.flagMGn != "" {
-		err = mail.Send(
+		err = mailutil.Send(
 			c.flagMGn,
 			c.flagMFm,
 			fmt.Sprintf("ERROR [%s]", c.Name()),

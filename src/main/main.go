@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"internal/cmd"
 	"internal/flag"
+	sc "internal/subcommands"
 
 	"github.com/google/subcommands"
 	"golang.org/x/net/context"
@@ -16,7 +16,7 @@ func main() {
 	flag.Parse()
 	initLogger()
 
-	cmd.Register()
+	sc.Register()
 	os.Exit(int(subcommands.Execute(context.Background())))
 }
 

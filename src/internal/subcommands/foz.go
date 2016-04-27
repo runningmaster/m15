@@ -1,4 +1,4 @@
-package cmd
+package subcommands
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"internal/net/mail"
+	"internal/net/mailutil"
 
 	"github.com/google/subcommands"
 	"golang.org/x/net/context"
@@ -48,7 +48,7 @@ fail:
 }
 
 func (c *cmdFoz) downloadAndPushGzips() error {
-	vCh := mail.NewFileChan(
+	vCh := mailutil.NewFileChan(
 		c.flagPOP,
 		func(name string) bool {
 			return strings.HasPrefix(strings.ToLower(filepath.Ext(name)), ".gz")

@@ -1,4 +1,4 @@
-package cmd
+package subcommands
 
 import (
 	"bytes"
@@ -11,8 +11,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"internal/archive/zip"
-	"internal/net/ftp"
+	"internal/archive/ziputil"
+	"internal/net/ftputil"
 
 	dbf "github.com/CentaurWarchief/godbf"
 	"github.com/google/subcommands"
@@ -25,14 +25,14 @@ import (
 type cmdBel struct {
 	cmdBase
 
-	mapFile map[string]ftp.Filer
+	mapFile map[string]ftputil.Filer
 	mapDele map[string][]string // for clean up
 	mapJSON map[string]interface{}
 }
 
 func newCmdBel() *cmdBel {
 	cmd := &cmdBel{
-		mapFile: make(map[string]ftp.Filer, 100),
+		mapFile: make(map[string]ftputil.Filer, 100),
 		mapDele: make(map[string][]string, 100),
 		mapJSON: make(map[string]interface{}, 100),
 	}
@@ -82,7 +82,7 @@ fail:
 func (c *cmdBel) downloadZIPs() error {
 	splitFlag := strings.Split(c.flagFTP, ",")
 	for i := range splitFlag {
-		vCh := ftp.NewFileChan(
+		vCh := ftputil.NewFileChan(
 			splitFlag[i],
 			nil,
 			true,
@@ -105,7 +105,7 @@ func (c *cmdBel) deleteZIPs() error {
 		if v == nil {
 			continue
 		}
-		return ftp.Delete(k, v...)
+		return ftputil.Delete(k, v...)
 	}
 
 	return nil
@@ -113,7 +113,7 @@ func (c *cmdBel) deleteZIPs() error {
 
 func (c *cmdBel) transformDBFs() error {
 	for k, v := range c.mapFile {
-		rc, err := zip.ExtractFile(v, v.Size())
+		rc, err := ziputil.ExtractFile(v, v.Size())
 		if err != nil {
 			return err
 		}

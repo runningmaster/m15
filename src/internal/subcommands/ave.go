@@ -1,4 +1,4 @@
-package cmd
+package subcommands
 
 import (
 	"bytes"
@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"internal/archive/zip"
-	"internal/encoding/csv"
-	"internal/encoding/txt"
-	"internal/net/ftp"
+	"internal/archive/ziputil"
+	"internal/encoding/csvutil"
+	"internal/encoding/txtutil"
+	"internal/net/ftputil"
 
 	"github.com/google/subcommands"
 	"github.com/klauspost/compress/gzip"
@@ -39,7 +39,7 @@ var (
 
 func newCmdAve() *cmdAve {
 	cmd := &cmdAve{
-		mapFile: make(map[string]ftp.Filer, capFile),
+		mapFile: make(map[string]ftputil.Filer, capFile),
 		mapShop: make(map[string]shop, capShop),
 		mapDrug: make(map[string]drug, capDrug),
 		mapProp: make(map[string][]prop, capProp),
@@ -88,7 +88,7 @@ fail:
 }
 
 func (c *cmdAve) downloadZIPs() error {
-	vCh := ftp.NewFileChan(
+	vCh := ftputil.NewFileChan(
 		c.flagFTP,
 		func(name string) bool {
 			return strings.Contains(strings.ToLower(name), timeFmt)
@@ -111,7 +111,7 @@ func (c *cmdAve) deleteZIPs() error {
 	for k := range c.mapFile {
 		f = append(f, k)
 	}
-	return ftp.Delete(c.flagFTP, f...)
+	return ftputil.Delete(c.flagFTP, f...)
 }
 
 func (c *cmdAve) transformCSVs() error {
@@ -122,12 +122,12 @@ func (c *cmdAve) transformCSVs() error {
 			return fmt.Errorf("ave: file not found '%v'", s)
 		}
 
-		rc, err := zip.ExtractFile(f, f.Size())
+		rc, err := ziputil.ExtractFile(f, f.Size())
 		if err != nil {
 			return err
 		}
 
-		vCh := csv.NewRecordChan(txt.Win1251ToUTF8(rc), ';', 1)
+		vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(rc), ';', 1)
 		for v := range vCh {
 			if v.Error != nil {
 				continue
@@ -270,7 +270,7 @@ type price struct {
 type cmdAve struct {
 	cmdBase
 
-	mapFile map[string]ftp.Filer
+	mapFile map[string]ftputil.Filer
 	mapShop map[string]shop
 	mapDrug map[string]drug
 	mapProp map[string][]prop
