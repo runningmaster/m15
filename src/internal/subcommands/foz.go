@@ -49,7 +49,7 @@ fail:
 
 func (c *cmdFoz) downloadAndPushGzips() error {
 	vCh := mailutil.NewFileChan(
-		c.flagPOP,
+		c.flagSRC,
 		func(name string) bool {
 			return strings.HasPrefix(strings.ToLower(filepath.Ext(name)), ".gz")
 		},

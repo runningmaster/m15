@@ -21,15 +21,15 @@ func Register() {
 	subcommands.Register(newCmdAve(), "")
 	subcommands.Register(newCmdFoz(), "")
 	subcommands.Register(newCmdBel(), "")
+	subcommands.Register(newCmdA24(), "")
 }
 
 type cmdBase struct {
 	name string
 	desc string
 
-	flagPOP string // flagSRC ?
-	flagFTP string // flagSRC ?
-	flagWEB string
+	flagSRC string
+	flagSRV string
 	flagKey string
 	flagTag string
 	flagMGn string
@@ -72,9 +72,8 @@ func (c *cmdBase) Usage() string {
 
 // SetFlags adds the flags for this command to the specified set.
 func (c *cmdBase) SetFlags(f *flag.FlagSet) {
-	f.StringVar(&c.flagPOP, "pop", "", "POP server 'mail://user:pass@host:port'")
-	f.StringVar(&c.flagFTP, "ftp", "", "network address for FTP server 'ftp://user:pass@host:port[,...]'")
-	f.StringVar(&c.flagWEB, "web", "", "network address for WEB server 'scheme://domain.com'")
+	f.StringVar(&c.flagSRC, "src", "", "source scheme://user:pass@host:port[,...]")
+	f.StringVar(&c.flagSRV, "srv", "", "network address for WEB server 'scheme://domain.com'")
 
 	f.StringVar(&c.flagKey, "key", "", "service key")
 	f.StringVar(&c.flagTag, "tag", "", "service tag")
@@ -85,7 +84,7 @@ func (c *cmdBase) SetFlags(f *flag.FlagSet) {
 }
 
 func (c *cmdBase) makeURL(path string) string {
-	return c.flagWEB + path
+	return c.flagSRV + path
 }
 
 func (c *cmdBase) failFast() error {

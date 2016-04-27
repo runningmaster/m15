@@ -80,7 +80,7 @@ fail:
 }
 
 func (c *cmdBel) downloadZIPs() error {
-	splitFlag := strings.Split(c.flagFTP, ",")
+	splitFlag := strings.Split(c.flagSRC, ",")
 	for i := range splitFlag {
 		vCh := ftputil.NewFileChan(
 			splitFlag[i],

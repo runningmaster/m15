@@ -3,4 +3,4 @@ Description=main foz
 
 [Service]
 Type=oneshot
-ExecStart=/home/user1/main/main foz -pop=v -web=v -key=v -tag=v -mgn=v -mto=v
+ExecStart=/home/user1/main/main foz -src=v -srv=v -key=v -tag=v -mgn=v -mto=v

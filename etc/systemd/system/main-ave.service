@@ -3,4 +3,4 @@ Description=main ave
 
 [Service]
 Type=oneshot
-ExecStart=/home/user1/main/main ave -ftp=v -web=v -key=v -tag=v -mgn=v -mto=v
+ExecStart=/home/user1/main/main ave -src=v -srv=v -key=v -tag=v -mgn=v -mto=v

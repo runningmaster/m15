@@ -37,6 +37,15 @@ var (
 	walkWay = []string{fileApt, fileTov, fileOst} // strong order files
 )
 
+type cmdAve struct {
+	cmdBase
+
+	mapFile map[string]ftputil.Filer
+	mapShop map[string]shop
+	mapDrug map[string]drug
+	mapProp map[string][]prop
+}
+
 func newCmdAve() *cmdAve {
 	cmd := &cmdAve{
 		mapFile: make(map[string]ftputil.Filer, capFile),
@@ -89,7 +98,7 @@ fail:
 
 func (c *cmdAve) downloadZIPs() error {
 	vCh := ftputil.NewFileChan(
-		c.flagFTP,
+		c.flagSRC,
 		func(name string) bool {
 			return strings.Contains(strings.ToLower(name), timeFmt)
 		},
@@ -111,7 +120,7 @@ func (c *cmdAve) deleteZIPs() error {
 	for k := range c.mapFile {
 		f = append(f, k)
 	}
-	return ftputil.Delete(c.flagFTP, f...)
+	return ftputil.Delete(c.flagSRC, f...)
 }
 
 func (c *cmdAve) transformCSVs() error {
@@ -265,13 +274,4 @@ type prop struct {
 type price struct {
 	Meta shop   `json:"meta"`
 	Data []prop `json:"data"`
-}
-
-type cmdAve struct {
-	cmdBase
-
-	mapFile map[string]ftputil.Filer
-	mapShop map[string]shop
-	mapDrug map[string]drug
-	mapProp map[string][]prop
 }
