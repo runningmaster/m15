@@ -24,7 +24,7 @@ const (
 	capFile = 3
 	capShop = 3000
 	capDrug = 200000
-	capProp = capShop
+	capProp = 5000
 
 	aveHead = "АВЕ" // magic const
 )
@@ -252,26 +252,26 @@ func (c *cmdAve) uploadGzipJSONs() error {
 // Data structs
 
 type shop struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Head string `json:"head"`
-	Addr string `json:"addr"`
-	Code string `json:"code"`
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+	Head string `json:"head,omitempty"`
+	Addr string `json:"addr,omitempty"`
+	Code string `json:"code,omitempty"`
 }
 
 type drug struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 type prop struct {
-	ID    string  `json:"id"`
-	Name  string  `json:"name"`
-	Quant float64 `json:"quant"`
-	Price float64 `json:"price"`
+	ID    string  `json:"id,omitempty"`
+	Name  string  `json:"name,omitempty"`
+	Quant float64 `json:"quant,omitempty"`
+	Price float64 `json:"price,omitempty"`
 }
 
 type price struct {
-	Meta shop   `json:"meta"`
-	Data []prop `json:"data"`
+	Meta shop   `json:"meta,omitempty"`
+	Data []prop `json:"data,omitempty"`
 }
