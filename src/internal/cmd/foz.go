@@ -3,10 +3,10 @@ package cmd
 import (
 	"encoding/json"
 	"flag"
+	"log"
 	"path/filepath"
 	"strings"
 
-	"internal/log"
 	"internal/net/mail"
 
 	"github.com/google/subcommands"

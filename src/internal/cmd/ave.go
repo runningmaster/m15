@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"internal/archive/zip"
 	"internal/encoding/csv"
 	"internal/encoding/txt"
-	"internal/log"
 	"internal/net/ftp"
 
 	"github.com/google/subcommands"

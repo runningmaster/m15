@@ -6,12 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"internal/archive/zip"
-	"internal/log"
 	"internal/net/ftp"
 
 	dbf "github.com/CentaurWarchief/godbf"
