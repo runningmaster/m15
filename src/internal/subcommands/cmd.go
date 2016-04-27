@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -73,14 +74,14 @@ func (c *cmdBase) Usage() string {
 // SetFlags adds the flags for this command to the specified set.
 func (c *cmdBase) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&c.flagSRC, "src", "", "source scheme://user:pass@host:port[,...]")
-	f.StringVar(&c.flagSRV, "srv", "", "network address for WEB server 'scheme://domain.com'")
+	f.StringVar(&c.flagSRV, "srv", "", "network address for WEB server scheme://domain.com")
 
 	f.StringVar(&c.flagKey, "key", "", "service key")
 	f.StringVar(&c.flagTag, "tag", "", "service tag")
 
-	f.StringVar(&c.flagMGn, "mgn", "", "Mailgun service 'mail://key@box.mailgun.org'")
+	f.StringVar(&c.flagMGn, "mgn", "", "mailgun service mail://api:key@box.mailgun.org")
 	f.StringVar(&c.flagMFm, "mfm", "noreplay@example.com", "Mailgun from")
-	f.StringVar(&c.flagMTo, "mto", "", "Mailgun to")
+	f.StringVar(&c.flagMTo, "mto", "", "mailgun to")
 }
 
 func (c *cmdBase) makeURL(path string) string {
@@ -107,6 +108,33 @@ func (c *cmdBase) failFast() error {
 	}
 
 	return nil
+}
+
+func (c *cmdBase) pullData(url string) ([]byte, error) {
+	ctx, _ := context.WithTimeout(c.httpCtx, 10*time.Second)
+	cli := c.httpCli
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := ctxhttp.Do(ctx, cli, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.StatusCode >= 300 {
+		return nil, fmt.Errorf("cmd: pull failed with code %d", res.StatusCode)
+	}
+
+	defer func(c io.Closer) {
+		if c != nil {
+			_ = c.Close
+		}
+	}(res.Body)
+
+	return ioutil.ReadAll(res.Body)
 }
 
 func (c *cmdBase) pushGzipV1(r io.Reader) error {
