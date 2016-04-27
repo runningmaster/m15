@@ -47,10 +47,9 @@ func NewRecordChan(f io.Reader, comma rune, skip int) <-chan struct {
 			}
 
 			n++
-			if n < skip {
+			if n <= skip {
 				continue
 			}
-
 			pipe <- makeResult(rec, nil)
 		}
 	}()
