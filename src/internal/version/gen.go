@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -51,14 +50,16 @@ func main() {
 	fmt.Printf("go:generate in %s -> %s\n", os.Getenv("GOFILE"), flagFile)
 
 	buildtime := time.Now().Format("20060102150405")
-	gitcommit := "0000000"
+	gitcommit := "00000000"
 	if isGitRepo() {
-		// execCmd("git", "log", "-n", "1", "--format=format: +%h %cd", "HEAD")
-		if res, err := execCmd("git", "rev-parse", "--short", "HEAD"); err == nil {
-			gitcommit = chomp(string(res))
+		//gitCommand := []string{"git", "log", "-n", "1", "--format=format: +%h %cd", "HEAD"}
+		gitCommand := []string{"git", "rev-parse", "HEAD"}
+		res := make([]byte, len(gitcommit))
+		err := execCmd(res, gitCommand...)
+		if err != nil {
 		}
+		gitcommit = string(res)
 	}
-
 	buf := &bytes.Buffer{}
 	fmt.Fprintf(buf, srcFormat,
 		buildtime,
@@ -101,11 +102,11 @@ func isGitRepo() bool {
 }
 
 // execCmd is simple wrapper for exec.Command
-func execCmd(cmd ...string) ([]byte, error) {
-	return exec.Command(cmd[0], cmd[1:]...).Output()
-}
-
-// chomp removes trailing spaces.
-func chomp(s string) string {
-	return strings.TrimRight(s, " \t\r\n")
+func execCmd(dst []byte, cmd ...string) error {
+	b, err := exec.Command(cmd[0], cmd[1:]...).Output()
+	if err != nil {
+		return err
+	}
+	copy(dst, b)
+	return nil
 }
