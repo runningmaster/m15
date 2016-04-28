@@ -6,22 +6,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
 // String returns the version according to http://semver.org/
 func String() string {
-	v := strings.Join(
-		[]string{
-			strconv.Itoa(Major),
-			strconv.Itoa(Minor),
-			strconv.Itoa(Patch),
-		},
-		".",
-	)
-	if Prerelease != "" {
-		v = fmt.Sprintf("%s-%s", v, Prerelease)
+	v := fmt.Sprintf("%d.%d.%d-%s", Major, Minor, Patch, PreRelease)
+	if strings.HasSuffix(v, "-") {
+		return v[:len(v)-1]
 	}
 	return v
 }

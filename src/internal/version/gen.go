@@ -31,12 +31,23 @@ const (
 		package version
 
 		const (
-			Major      = %d
-			Minor      = %d
-			Patch      = %d
-			Prerelease = %q
-			BuildTime  = %q
-			GitCommit  = %q
+			// Major version when you make incompatible API changes.
+			Major = %d
+			
+			// Minor version when you add functionality in a backwards-compatible manner.
+			Minor = %d
+			
+			// Patch version when you make backwards-compatible bug fixes.
+			Patch = %d
+			
+			// PreRelease version may be denoted by appending a hyphen and a series of dot separated identifiers immediately following the patch version.
+			PreRelease = %q
+			
+			// BuildTime is build metadata and it may be denoted by appending a plus sign and a series of dot separated identifiers immediately following the patch or pre-release version.
+			BuildTime = %q
+			
+			// GitCommit is build metadata and it may be denoted by appending a plus sign and a series of dot separated identifiers immediately following the patch or pre-release version.
+			GitCommit = %q
 		)
 `
 )
@@ -57,6 +68,7 @@ func main() {
 		}
 		gitcommit = string(res)
 	}
+
 	buf := &bytes.Buffer{}
 	fmt.Fprintf(buf, srcFormat,
 		major,
