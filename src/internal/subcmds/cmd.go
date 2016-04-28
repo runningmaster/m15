@@ -53,7 +53,7 @@ func (c *cmdBase) initBase(name, desc string) {
 		},
 	}
 	c.httpCtx = context.Background()
-	c.httpUsr = fmt.Sprintf("%s %s", version.Stamp.AppName(), version.Stamp.Extended())
+	c.httpUsr = fmt.Sprintf("%s %s", version.AppName(), version.WithBuildInfo())
 }
 
 // Name returns the name of the command.
@@ -68,7 +68,7 @@ func (c *cmdBase) Synopsis() string {
 
 // Usage returns a long string explaining the command and giving usage information.
 func (c *cmdBase) Usage() string {
-	return fmt.Sprintf("%s %s", version.Stamp.AppName(), c.Name())
+	return fmt.Sprintf("%s %s", version.AppName(), c.Name())
 }
 
 // SetFlags adds the flags for this command to the specified set.
@@ -207,7 +207,7 @@ func (c *cmdBase) sendError(err error) error {
 			c.flagMGn,
 			c.flagMFm,
 			fmt.Sprintf("ERROR [%s]", c.Name()),
-			fmt.Sprintf("%v: version %v: %v", time.Now(), version.Stamp.Extended(), err),
+			fmt.Sprintf("%v: version %v: %v", time.Now(), version.WithBuildInfo(), err),
 			c.flagMTo,
 		)
 		if err != nil {

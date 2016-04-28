@@ -31,15 +31,12 @@ const (
 		package version
 
 		const (
-			buildtime  = %q
-			gitcommit  = %q
-		)
-
-		var (
-			major      = %d
-			minor      = %d
-			patch      = %d
-			prerelease = %q
+			Major      = %d
+			Minor      = %d
+			Patch      = %d
+			Prerelease = %q
+			BuildTime  = %q
+			GitCommit  = %q
 		)
 `
 )
@@ -62,12 +59,12 @@ func main() {
 	}
 	buf := &bytes.Buffer{}
 	fmt.Fprintf(buf, srcFormat,
-		buildtime,
-		gitcommit,
 		major,
 		minor,
 		patch,
 		prerelease,
+		buildtime,
+		gitcommit,
 	)
 
 	out, err := format.Source(buf.Bytes())
