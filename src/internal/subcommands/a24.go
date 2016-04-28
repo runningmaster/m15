@@ -74,7 +74,7 @@ func (c *cmdA24) downloadCSVs() error {
 		return err
 	}
 
-	vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(bytes.NewReader(b)), ';', 1)
+	vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(bytes.NewReader(b)), ';', true, 1)
 	for v := range vCh {
 		if v.Error != nil {
 			continue
@@ -97,7 +97,7 @@ func (c *cmdA24) transformCSVs() error {
 	var b []byte
 	for k, v := range c.mapShop {
 		b = c.mapFile[k]
-		vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(bytes.NewReader(b)), ';', 1)
+		vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(bytes.NewReader(b)), ';', true, 1)
 		for v := range vCh {
 			if v.Error != nil {
 				continue

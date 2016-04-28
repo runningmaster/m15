@@ -6,7 +6,7 @@ import (
 )
 
 // NewRecordChan allows to work with cvs records in a pipe style
-func NewRecordChan(f io.Reader, comma rune, skip int) <-chan struct {
+func NewRecordChan(f io.Reader, comma rune, lquotes bool, skip int) <-chan struct {
 	Record []string
 	Error  error
 } {
@@ -34,6 +34,7 @@ func NewRecordChan(f io.Reader, comma rune, skip int) <-chan struct {
 
 		r := csv.NewReader(f)
 		r.Comma = comma
+		r.LazyQuotes = lquotes
 
 		var n int
 		for {

@@ -136,7 +136,7 @@ func (c *cmdAve) transformCSVs() error {
 			return err
 		}
 
-		vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(rc), ';', 1)
+		vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(rc), ';', false, 1)
 		for v := range vCh {
 			if v.Error != nil {
 				continue
