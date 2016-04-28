@@ -1,4 +1,4 @@
-package subcommands
+package subcmds
 
 import (
 	"encoding/json"
