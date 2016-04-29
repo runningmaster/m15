@@ -89,7 +89,7 @@ func (c *cmdBase) makeURL(path string) string {
 }
 
 func (c *cmdBase) failFast() error {
-	ctx, _ := context.WithTimeout(c.httpCtx, 5*time.Second)
+	ctx, _ := context.WithTimeout(c.httpCtx, 10*time.Second)
 	cli := c.httpCli
 	url := c.makeURL("/ping")
 
