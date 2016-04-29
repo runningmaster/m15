@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"strconv"
 	"strings"
@@ -21,14 +22,14 @@ type cmdA24 struct {
 	cmdBase
 
 	mapShop map[string]shop1
-	mapFile map[string][]byte
+	mapFile map[string]io.Reader
 	mapProp map[string][]prop1
 }
 
 func newCmdA24() *cmdA24 {
 	cmd := &cmdA24{
 		mapShop: make(map[string]shop1, 30),
-		mapFile: make(map[string][]byte, 30),
+		mapFile: make(map[string]io.Reader, 30),
 		mapProp: make(map[string][]prop1, 5000),
 	}
 	cmd.initBase("a24", "download and send to skynet gzip(json) files from site")
@@ -69,12 +70,12 @@ fail:
 }
 
 func (c *cmdA24) downloadCSVs() error {
-	b, err := c.pullData(c.flagSRC)
+	r, err := c.pullData(c.flagSRC)
 	if err != nil {
 		return err
 	}
 
-	vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(bytes.NewReader(b)), ';', true, 1)
+	vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(r), ';', true, 1)
 	for v := range vCh {
 		if v.Error != nil {
 			continue
@@ -83,21 +84,21 @@ func (c *cmdA24) downloadCSVs() error {
 	}
 
 	for k, v := range c.mapShop {
-		b, err = c.pullData("http://" + v.File)
+		r, err = c.pullData("http://" + v.File)
 		if err != nil {
 			return err
 		}
-		c.mapFile[k] = b
+		c.mapFile[k] = r
 	}
 
 	return nil
 }
 
 func (c *cmdA24) transformCSVs() error {
-	var b []byte
+	var r io.Reader
 	for k, v := range c.mapShop {
-		b = c.mapFile[k]
-		vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(bytes.NewReader(b)), ';', true, 1)
+		r = c.mapFile[k]
+		vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(r), ';', true, 1)
 		for v := range vCh {
 			if v.Error != nil {
 				continue
@@ -147,7 +148,7 @@ func (c *cmdA24) parseRecordFile(s string, r []string) {
 }
 
 func (c *cmdA24) uploadGzipJSONs() error {
-	b := &bytes.Buffer{}
+	b := new(bytes.Buffer)
 
 	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
 	if err != nil {
@@ -159,7 +160,7 @@ func (c *cmdA24) uploadGzipJSONs() error {
 			Meta: c.mapShop[k],
 			Data: v,
 		}
-
+		println(len(v))
 		b.Reset()
 		w.Reset(b)
 

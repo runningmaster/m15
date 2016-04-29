@@ -184,7 +184,7 @@ func (c *cmdBel) transformDBFs() error {
 }
 
 func (c *cmdBel) uploadGzipJSONs() error {
-	b := &bytes.Buffer{}
+	b := new(bytes.Buffer)
 
 	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
 	if err != nil {
@@ -227,12 +227,10 @@ func (d *cp866Decoder) Decode(in []byte) ([]byte, error) {
 	if utf8.Valid(in) {
 		return in, nil
 	}
+
 	r := transform.NewReader(bytes.NewReader(in), charmap.CodePage866.NewDecoder())
-	data, err := ioutil.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
+
+	return ioutil.ReadAll(r)
 }
 
 func castToStringSafely(v interface{}) string {

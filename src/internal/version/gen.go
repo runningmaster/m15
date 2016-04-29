@@ -69,7 +69,7 @@ func main() {
 		gitcommit = string(res)
 	}
 
-	buf := &bytes.Buffer{}
+	buf := new(bytes.Buffer)
 	fmt.Fprintf(buf, srcFormat,
 		major,
 		minor,

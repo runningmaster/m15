@@ -214,7 +214,7 @@ func (c *cmdAve) parseRecordOst(r []string) {
 }
 
 func (c *cmdAve) uploadGzipJSONs() error {
-	b := &bytes.Buffer{}
+	b := new(bytes.Buffer)
 
 	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
 	if err != nil {

@@ -1,11 +1,11 @@
 package subcmds
 
 import (
+	"bytes"
 	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -110,7 +110,7 @@ func (c *cmdBase) failFast() error {
 	return nil
 }
 
-func (c *cmdBase) pullData(url string) ([]byte, error) {
+func (c *cmdBase) pullData(url string) (io.Reader, error) {
 	ctx, _ := context.WithTimeout(c.httpCtx, 10*time.Second)
 	cli := c.httpCli
 
@@ -134,7 +134,9 @@ func (c *cmdBase) pullData(url string) ([]byte, error) {
 		}
 	}(res.Body)
 
-	return ioutil.ReadAll(res.Body)
+	buf := new(bytes.Buffer)
+	_, err = buf.ReadFrom(res.Body)
+	return buf, err
 }
 
 func (c *cmdBase) pushGzipV1(r io.Reader) error {
