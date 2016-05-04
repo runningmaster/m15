@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"internal/flag"
-	sc "internal/subcmds"
+	sc "internal/subcmd"
 
 	"github.com/google/subcommands"
 	"golang.org/x/net/context"

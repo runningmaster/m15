@@ -1,4 +1,4 @@
-package subcmds
+package subcmd
 
 import (
 	"bytes"
