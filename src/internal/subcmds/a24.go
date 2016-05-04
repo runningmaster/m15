@@ -160,7 +160,7 @@ func (c *cmdA24) uploadGzipJSONs() error {
 			Meta: c.mapShop[k],
 			Data: v,
 		}
-		println(len(v))
+
 		b.Reset()
 		w.Reset(b)
 

@@ -1,0 +1,10 @@
+[Unit]
+Description=run main-a24.service
+
+[Timer]
+OnCalendar=10:10:00
+Unit=main-a24.service
+
+[Install]
+WantedBy=timers.target
+

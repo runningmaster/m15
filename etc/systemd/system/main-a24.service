@@ -1,0 +1,7 @@
+[Unit]
+Description=main a24
+
+[Service]
+Type=oneshot
+ExecStart=/home/user1/main/main a24 -src=v -srv=v -key=v -tag=v -mgn=v -mto=v
+
