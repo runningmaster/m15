@@ -30,7 +30,7 @@ func NewRecordChan(f io.Reader, comma rune, lquotes bool, skip int) <-chan struc
 	)
 
 	go func() {
-		defer close(pipe)
+		defer func() { close(pipe) }()
 
 		r := csv.NewReader(f)
 		r.Comma = comma

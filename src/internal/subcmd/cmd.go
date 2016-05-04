@@ -123,16 +123,11 @@ func (c *cmdBase) pullData(url string) (io.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode >= 300 {
 		return nil, fmt.Errorf("cmd: pull failed with code %d", res.StatusCode)
 	}
-
-	defer func(c io.Closer) {
-		if c != nil {
-			_ = c.Close
-		}
-	}(res.Body)
 
 	buf := new(bytes.Buffer)
 	_, err = buf.ReadFrom(res.Body)

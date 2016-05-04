@@ -84,11 +84,7 @@ func readFile(c *ftp.ServerConn, name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if body != nil {
-			_ = body.Close()
-		}
-	}()
+	defer func() { _ = body.Close() }()
 
 	data, err := ioutil.ReadAll(body)
 	if err != nil {
@@ -104,11 +100,7 @@ func Delete(addr string, name ...string) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if c != nil {
-			_ = c.Quit()
-		}
-	}()
+	defer func() { _ = c.Quit() }()
 
 	for i := range name {
 		err = c.Delete(name[i])
@@ -144,22 +136,19 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 		}
 	)
 	go func() {
+		defer func() { close(pipe) }()
+
 		var (
 			c   *ftp.ServerConn
 			l   []*ftp.Entry
 			err error
 		)
-		defer func() {
-			if c != nil {
-				_ = c.Quit()
-			}
-			close(pipe)
-		}()
 
 		c, err = newFTP(addr)
 		if err != nil {
 			goto fail
 		}
+		defer func() { _ = c.Quit() }()
 
 		l, err = c.List(".")
 		if err != nil {

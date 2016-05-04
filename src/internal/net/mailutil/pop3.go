@@ -91,23 +91,20 @@ func NewMailChan(addr string, cleanup bool) <-chan struct {
 		}
 	)
 	go func() {
+		defer func() { close(pipe) }()
+
 		var (
 			c   *pop3.Client
 			l   []int
 			m   string
 			err error
 		)
-		defer func() {
-			if c != nil {
-				_ = c.Quit()
-			}
-			close(pipe)
-		}()
 
 		c, err = newPOP3(addr)
 		if err != nil {
 			goto fail
 		}
+		defer func() { _ = c.Quit() }()
 
 		l, _, err = c.ListAll()
 		if err != nil {
@@ -173,13 +170,15 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 		}
 	)
 	go func() {
-		defer close(pipe)
+		defer func() { close(pipe) }()
+
 		var (
 			m   *mail.Message
 			s   string
 			err error
 			vCh = NewMailChan(addr, cleanup)
 		)
+
 		for v := range vCh {
 			if v.Error != nil {
 				goto fail
