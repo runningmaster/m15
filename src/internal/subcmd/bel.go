@@ -113,7 +113,7 @@ func (c *cmdBel) deleteZIPs() error {
 
 func (c *cmdBel) transformDBFs() error {
 	for k, v := range c.mapFile {
-		rc, err := ziputil.ExtractFile(v, v.Size())
+		rc, err := ziputil.ExtractFile(v)
 		if err != nil {
 			return err
 		}

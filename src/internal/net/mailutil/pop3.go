@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"net/mail"
@@ -24,7 +23,7 @@ type Filer interface {
 }
 
 type file struct {
-	r    *bytes.Reader
+	buf  *bytes.Buffer
 	name string
 	subj string
 }
@@ -37,8 +36,8 @@ func (f file) Subj() string {
 	return f.subj
 }
 
-func (f file) Read(b []byte) (int, error) {
-	return f.r.Read(b)
+func (f file) Read(p []byte) (int, error) {
+	return f.buf.Read(p)
 }
 
 func newPOP3(addr string) (*pop3.Client, error) {
@@ -141,9 +140,10 @@ func skipFile(h textproto.MIMEHeader, name string, nameOK func(string) bool) boo
 	return badBase || badName
 }
 
-func readFile(p io.ReadCloser) ([]byte, error) {
-	defer func() { _ = p.Close() }()
-	return ioutil.ReadAll(base64.NewDecoder(base64.StdEncoding, p))
+func copyFile(dst io.Writer, src io.ReadCloser) error {
+	defer func() { _ = src.Close() }()
+	_, err := io.Copy(dst, base64.NewDecoder(base64.StdEncoding, src))
+	return err
 }
 
 // NewFileChan allows to work with files (attachments) from POP3 server in a pipe style
@@ -197,7 +197,7 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 			var (
 				r = multipart.NewReader(m.Body, s) // multipart reader
 				p *multipart.Part
-				b []byte
+				b *bytes.Buffer
 			)
 			for {
 				p, err = r.NextPart()
@@ -214,14 +214,15 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 					continue
 				}
 
-				b, err = readFile(p)
+				b = new(bytes.Buffer)
+				err = copyFile(b, p)
 				if err != nil {
 					goto fail
 				}
 
 				pipe <- makeResult(
 					file{
-						r:    bytes.NewReader(b),
+						buf:  b,
 						name: s,
 						subj: m.Header.Get("Subject"),
 					},

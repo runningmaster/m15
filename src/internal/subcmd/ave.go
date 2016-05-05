@@ -131,7 +131,7 @@ func (c *cmdAve) transformCSVs() error {
 			return fmt.Errorf("ave: file not found '%v'", s)
 		}
 
-		rc, err := ziputil.ExtractFile(f, f.Size())
+		rc, err := ziputil.ExtractFile(f)
 		if err != nil {
 			return err
 		}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"time"
 
@@ -14,14 +13,12 @@ import (
 // Filer is representation for file from FTP
 type Filer interface {
 	io.Reader
-	io.ReaderAt
 	Name() string
-	Size() int64
 	Time() time.Time
 }
 
 type file struct {
-	r    *bytes.Reader
+	buf  *bytes.Buffer
 	name string
 	time time.Time
 }
@@ -30,20 +27,12 @@ func (f file) Name() string {
 	return f.name
 }
 
-func (f file) Size() int64 {
-	return f.r.Size()
-}
-
 func (f file) Time() time.Time {
 	return f.time
 }
 
-func (f file) Read(b []byte) (int, error) {
-	return f.r.Read(b)
-}
-
-func (f file) ReadAt(b []byte, off int64) (int, error) {
-	return f.r.ReadAt(b, off)
+func (f file) Read(p []byte) (int, error) {
+	return f.buf.Read(p)
 }
 
 func newFTP(addr string) (*ftp.ServerConn, error) {
@@ -79,19 +68,10 @@ func skipFile(e *ftp.Entry, nameOK func(string) bool) bool {
 	return badType || badSize || badName
 }
 
-func readFile(c *ftp.ServerConn, name string) ([]byte, error) {
-	body, err := c.Retr(name)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = body.Close() }()
-
-	data, err := ioutil.ReadAll(body)
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
+func copyFile(dst io.Writer, src io.ReadCloser) error {
+	defer func() { _ = src.Close() }()
+	_, err := io.Copy(dst, src)
+	return err
 }
 
 // Delete deletes files
@@ -141,6 +121,8 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 		var (
 			c   *ftp.ServerConn
 			l   []*ftp.Entry
+			r   io.ReadCloser
+			b   *bytes.Buffer
 			err error
 		)
 
@@ -160,8 +142,13 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 				continue
 			}
 
-			var b []byte
-			b, err = readFile(c, v.Name)
+			r, err = c.Retr(v.Name)
+			if err != nil {
+				goto fail
+			}
+
+			b = new(bytes.Buffer)
+			err = copyFile(b, r)
 			if err != nil {
 				goto fail
 			}
@@ -175,7 +162,7 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 
 			pipe <- makeResult(
 				file{
-					r:    bytes.NewReader(b),
+					buf:  b,
 					name: v.Name,
 					time: v.Time,
 				},
