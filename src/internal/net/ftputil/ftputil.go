@@ -18,7 +18,7 @@ type Filer interface {
 }
 
 type file struct {
-	buf  *bytes.Buffer
+	r    io.Reader
 	name string
 	time time.Time
 }
@@ -32,7 +32,7 @@ func (f file) Time() time.Time {
 }
 
 func (f file) Read(p []byte) (int, error) {
-	return f.buf.Read(p)
+	return f.r.Read(p)
 }
 
 func newFTP(addr string) (*ftp.ServerConn, error) {
@@ -162,7 +162,7 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 
 			pipe <- makeResult(
 				file{
-					buf:  b,
+					r:    b,
 					name: v.Name,
 					time: v.Time,
 				},

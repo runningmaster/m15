@@ -5,25 +5,17 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 )
 
 // ExtractFile extracts first file from zip archive
 func ExtractFile(r io.Reader) (io.ReadCloser, error) {
-	var b []byte
-	var err error
-
-	switch r := r.(type) {
-	case *bytes.Buffer:
-		b = r.Bytes()
-	default:
-		b, err = ioutil.ReadAll(r)
-		if err != nil {
-			return nil, err
-		}
+	buf := new(bytes.Buffer)
+	_, err := io.Copy(buf, r)
+	if err != nil {
+		return nil, err
 	}
 
-	br := bytes.NewReader(b)
+	br := bytes.NewReader(buf.Bytes())
 	zip, err := zip.NewReader(br, br.Size())
 	if err != nil {
 		return nil, err

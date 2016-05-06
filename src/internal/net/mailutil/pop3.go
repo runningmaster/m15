@@ -23,7 +23,7 @@ type Filer interface {
 }
 
 type file struct {
-	buf  *bytes.Buffer
+	r    io.Reader
 	name string
 	subj string
 }
@@ -37,7 +37,7 @@ func (f file) Subj() string {
 }
 
 func (f file) Read(p []byte) (int, error) {
-	return f.buf.Read(p)
+	return f.r.Read(p)
 }
 
 func newPOP3(addr string) (*pop3.Client, error) {
@@ -222,7 +222,7 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 
 				pipe <- makeResult(
 					file{
-						buf:  b,
+						r:    b,
 						name: s,
 						subj: m.Header.Get("Subject"),
 					},
