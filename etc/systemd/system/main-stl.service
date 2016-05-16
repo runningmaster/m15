@@ -1,0 +1,7 @@
+[Unit]
+Description=main stl
+
+[Service]
+Type=oneshot
+ExecStart=/home/user1/main/main stl -src=v -srv=v -key=v -tag=v -mgn=v -mto=v
+

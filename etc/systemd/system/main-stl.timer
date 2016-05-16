@@ -1,0 +1,10 @@
+[Unit]
+Description=run main-stl.service
+
+[Timer]
+OnCalendar=11:20:00
+Unit=main-stl.service
+
+[Install]
+WantedBy=timers.target
+
