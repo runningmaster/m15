@@ -5,25 +5,31 @@ import (
 	"log"
 	"os"
 
-	"internal/flag"
+	"internal/conf"
 	sc "internal/subcmd"
 
 	"github.com/google/subcommands"
 	"golang.org/x/net/context"
 )
 
-func main() {
-	flag.Parse()
-	initLogger()
-
+func init() {
 	sc.Register()
 	os.Exit(int(subcommands.Execute(context.Background())))
+}
+
+func main() {
+	initConfig()
+	initLogger()
+}
+
+func initConfig() {
+	conf.Parse()
 }
 
 func initLogger() {
 	log.SetFlags(0)
 	log.SetOutput(ioutil.Discard)
-	if flag.Verbose {
+	if conf.Verbose {
 		log.SetOutput(os.Stderr)
 	}
 }

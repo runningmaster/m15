@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"internal/net/mailutil"
+	"internal/util/mailutil"
 	"internal/version"
 
 	"github.com/google/subcommands"

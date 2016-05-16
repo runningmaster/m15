@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"internal/encoding/csvutil"
-	"internal/encoding/txtutil"
+	"internal/util/csvutil"
+	"internal/util/txtutil"
 
 	"github.com/google/subcommands"
 	"golang.org/x/net/context"

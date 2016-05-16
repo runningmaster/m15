@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"internal/net/mailutil"
+	"internal/util/mailutil"
 
 	"github.com/google/subcommands"
 	"golang.org/x/net/context"

@@ -11,8 +11,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"internal/archive/ziputil"
-	"internal/net/ftputil"
+	"internal/util/ftputil"
+	"internal/util/ziputil"
 
 	dbf "github.com/CentaurWarchief/godbf"
 	"github.com/google/subcommands"

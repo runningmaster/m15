@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"internal/archive/ziputil"
-	"internal/encoding/csvutil"
-	"internal/encoding/txtutil"
-	"internal/net/ftputil"
+	"internal/util/csvutil"
+	"internal/util/ftputil"
+	"internal/util/txtutil"
+	"internal/util/ziputil"
 
 	"github.com/google/subcommands"
 	"github.com/klauspost/compress/gzip"
