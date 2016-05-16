@@ -13,13 +13,13 @@ import (
 )
 
 func init() {
-	sc.Register()
-	os.Exit(int(subcommands.Execute(context.Background())))
+	initConfig()
+	initLogger()
 }
 
 func main() {
-	initConfig()
-	initLogger()
+	sc.Register()
+	os.Exit(int(subcommands.Execute(context.Background())))
 }
 
 func initConfig() {

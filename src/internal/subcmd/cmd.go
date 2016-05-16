@@ -23,6 +23,7 @@ func Register() {
 	subcommands.Register(newCmdFoz(), "")
 	subcommands.Register(newCmdBel(), "")
 	subcommands.Register(newCmdA24(), "")
+	subcommands.Register(newCmdStl(), "")
 }
 
 type cmdBase struct {
