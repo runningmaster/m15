@@ -1,6 +1,8 @@
 [Unit]
-Description=main foz
+Description=m15-worker foz
 
 [Service]
 Type=oneshot
-ExecStart=/home/user1/main/main foz -src=v -srv=v -key=v -tag=v -mgn=v -mto=v
+ExecStart=/usr/bin/m15-worker foz -src=v -srv=v -key=v -tag=v -mgn=v -mto=v
+User=m15
+Group=m15

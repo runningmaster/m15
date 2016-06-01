@@ -1,4 +1,4 @@
-package subcmd
+package cmd
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"internal/util/mailutil"
+	"internal/mailutil"
 	"internal/version"
 
 	"github.com/google/subcommands"

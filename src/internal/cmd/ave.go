@@ -1,4 +1,4 @@
-package subcmd
+package cmd
 
 import (
 	"bytes"
@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"internal/util/csvutil"
-	"internal/util/ftputil"
-	"internal/util/txtutil"
-	"internal/util/ziputil"
+	"internal/csvutil"
+	"internal/ftputil"
+	"internal/txtutil"
+	"internal/ziputil"
 
 	"github.com/google/subcommands"
 	"github.com/klauspost/compress/gzip"

@@ -1,4 +1,4 @@
-package subcmd
+package cmd
 
 import (
 	"bytes"
@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"internal/util/csvutil"
-	"internal/util/txtutil"
+	"internal/csvutil"
+	"internal/txtutil"
 
 	"github.com/google/subcommands"
 	"golang.org/x/net/context"

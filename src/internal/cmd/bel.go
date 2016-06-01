@@ -1,4 +1,4 @@
-package subcmd
+package cmd
 
 import (
 	"bytes"
@@ -11,8 +11,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"internal/util/ftputil"
-	"internal/util/ziputil"
+	"internal/ftputil"
+	"internal/ziputil"
 
 	dbf "github.com/CentaurWarchief/godbf"
 	"github.com/google/subcommands"

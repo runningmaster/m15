@@ -1,4 +1,4 @@
-package subcmd
+package cmd
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"internal/util/mailutil"
+	"internal/mailutil"
 
 	"github.com/google/subcommands"
 	"golang.org/x/net/context"
