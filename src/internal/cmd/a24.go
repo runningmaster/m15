@@ -100,6 +100,9 @@ func (c *cmdA24) transformCSVs() error {
 	var r io.Reader
 	for k, v := range c.mapShop {
 		r = c.mapFile[k]
+		if r == nil {
+			continue
+		}
 		vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(r), ';', true, 1)
 		for v := range vCh {
 			if v.Error != nil {
