@@ -86,7 +86,9 @@ func (c *cmdA24) downloadCSVs() error {
 	for k, v := range c.mapShop {
 		r, err = c.pullData("http://" + v.File)
 		if err != nil {
-			return err
+			log.Println(v.File)
+			//return err
+			continue
 		}
 		c.mapFile[k] = r
 	}
