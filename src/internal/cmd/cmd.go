@@ -193,7 +193,7 @@ func (c *cmdBase) pushGzipV2(r io.Reader) error {
 	}
 
 	if res.StatusCode >= 300 {
-		return fmt.Errorf("ave: push failed with code %d", res.StatusCode)
+		return fmt.Errorf("cmd: push failed with code %d", res.StatusCode)
 	}
 
 	return nil
