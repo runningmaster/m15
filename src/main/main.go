@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 
@@ -11,6 +12,7 @@ import (
 )
 
 func main() {
+	flag.Parse()
 	log.SetFlags(0)
 	log.SetOutput(os.Stderr)
 

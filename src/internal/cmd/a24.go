@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"encoding/xml"
 	"flag"
 	"fmt"
 	"io"
@@ -21,6 +22,9 @@ import (
 type cmdA24 struct {
 	cmdBase
 
+	flagXML string
+
+	mapLink map[string]string
 	mapShop map[string]shop1
 	mapFile map[string]io.Reader
 	mapProp map[string][]prop1
@@ -28,6 +32,7 @@ type cmdA24 struct {
 
 func newCmdA24() *cmdA24 {
 	cmd := &cmdA24{
+		mapLink: make(map[string]string, 5000),
 		mapShop: make(map[string]shop1, 30),
 		mapFile: make(map[string]io.Reader, 30),
 		mapProp: make(map[string][]prop1, 5000),
@@ -36,8 +41,19 @@ func newCmdA24() *cmdA24 {
 	return cmd
 }
 
+// SetFlags adds the flags for this command to the specified set.
+func (c *cmdA24) SetFlags(f *flag.FlagSet) {
+	(&c.cmdBase).SetFlags(f)
+	f.StringVar(&c.flagXML, "xml", "", "source scheme://user:pass@host:port[,...]")
+}
+
 func (c *cmdA24) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
 	err := c.failFast()
+	if err != nil {
+		goto fail
+	}
+
+	err = c.downloadXML()
 	if err != nil {
 		goto fail
 	}
@@ -67,6 +83,34 @@ fail:
 	}
 
 	return subcommands.ExitFailure
+}
+
+type linkXML struct {
+	Offers []offer `xml:"shop>offers>offer"`
+}
+
+type offer struct {
+	ID  string `xml:"id,attr"`
+	Url string `xml:"url"`
+}
+
+func (c *cmdA24) downloadXML() error {
+	r, err := c.pullData(c.flagXML)
+	if err != nil {
+		return err
+	}
+
+	v := linkXML{}
+	err = xml.NewDecoder(r).Decode(&v)
+	if err != nil {
+		return err
+	}
+
+	for i := range v.Offers {
+		c.mapLink[v.Offers[i].ID] = v.Offers[i].Url
+	}
+
+	return nil
 }
 
 func (c *cmdA24) downloadCSVs() error {
@@ -142,9 +186,12 @@ func (c *cmdA24) parseRecordFile(s string, r []string) {
 		return
 	}
 
+	l := c.mapLink[r[0]]
 	p := prop1{
 		Code:  r[0],
 		Name:  fmt.Sprintf("%s %s", r[1], r[2]),
+		Addr:  l,
+		Link:  l,
 		Quant: quant,
 		Price: price,
 	}

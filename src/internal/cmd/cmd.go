@@ -112,7 +112,7 @@ func (c *cmdBase) failFast() error {
 }
 
 func (c *cmdBase) pullData(url string) (io.Reader, error) {
-	ctx, _ := context.WithTimeout(c.httpCtx, 10*time.Second)
+	ctx, _ := context.WithTimeout(c.httpCtx, 30*time.Second)
 	cli := c.httpCli
 
 	req, err := http.NewRequest("GET", url, nil)
