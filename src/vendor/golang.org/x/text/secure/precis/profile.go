@@ -54,9 +54,10 @@ func NewFreeform(opts ...Option) *Profile {
 func (p *Profile) NewTransformer() *Transformer {
 	var ts []transform.Transformer
 
-	if p.options.allowwidechars {
-		ts = append(ts, width.Fold)
-	} else if p.options.width != nil {
+	// These transforms are applied in the order defined in
+	// https://tools.ietf.org/html/rfc7564#section-7
+
+	if p.options.foldWidth {
 		ts = append(ts, width.Fold)
 	}
 
@@ -74,7 +75,7 @@ func (p *Profile) NewTransformer() *Transformer {
 		ts = append(ts, bidirule.New())
 	}
 
-	ts = append(ts, checker{p: p, allowed: p.Allowed()})
+	ts = append(ts, &checker{p: p, allowed: p.Allowed()})
 
 	// TODO: Add the disallow empty rule with a dummy transformer?
 
@@ -96,36 +97,45 @@ func (b *buffers) init(n int) {
 
 func (b *buffers) apply(t transform.Transformer) (err error) {
 	// TODO: use Span, once available.
-	b.src, _, err = transform.Append(t, b.buf[b.next][:0], b.src)
-	b.buf[b.next] = b.src
-	b.next ^= 1
+	x := b.next & 1
+	b.src, _, err = transform.Append(t, b.buf[x][:0], b.src)
+	b.buf[x] = b.src
+	b.next++
 	return err
 }
 
-func (b *buffers) enforce(p *Profile, src []byte) ([]byte, error) {
+func (b *buffers) enforce(p *Profile, src []byte) (str []byte, err error) {
 	b.src = src
 
+	// These transforms are applied in the order defined in
+	// https://tools.ietf.org/html/rfc7564#section-7
+
 	// TODO: allow different width transforms options.
-	if p.options.allowwidechars || p.options.width != nil {
+	if p.options.foldWidth {
 		// TODO: use Span, once available.
-		if err := b.apply(width.Fold); err != nil {
+		if err = b.apply(width.Fold); err != nil {
 			return nil, err
 		}
 	}
 	for _, f := range p.options.additional {
-		if err := b.apply(f()); err != nil {
+		if err = b.apply(f()); err != nil {
 			return nil, err
 		}
 	}
 	if p.options.cases != nil {
-		if err := b.apply(p.options.cases); err != nil {
+		if err = b.apply(p.options.cases); err != nil {
 			return nil, err
 		}
 	}
-	// TODO: use QuickSpan. Using QuickSpan may cause the original buffer to be
-	// returned. Make sure Bytes will handle this correctly.
-	if err := b.apply(p.options.norm); err != nil {
-		return nil, err
+	if n := p.norm.QuickSpan(b.src); n < len(b.src) {
+		x := b.next & 1
+		n = copy(b.buf[x], b.src[:n])
+		b.src, _, err = transform.Append(p.norm, b.buf[x][:n], b.src[n:])
+		b.buf[x] = b.src
+		b.next++
+		if err != nil {
+			return nil, err
+		}
 	}
 	if p.options.bidiRule {
 		if err := b.apply(bidirule.New()); err != nil {
@@ -173,6 +183,11 @@ func (p *Profile) Bytes(b []byte) ([]byte, error) {
 	b, err := buf.enforce(p, b)
 	if err != nil {
 		return nil, err
+	}
+	if buf.next == 0 {
+		c := make([]byte, len(b))
+		copy(c, b)
+		return c, nil
 	}
 	return b, nil
 }
@@ -225,48 +240,91 @@ func (p *Profile) Allowed() runes.Set {
 }
 
 type checker struct {
-	p *Profile
-	transform.NopResetter
+	p       *Profile
 	allowed runes.Set
+
+	beforeBits catBitmap
+	termBits   catBitmap
+	acceptBits catBitmap
+}
+
+func (c *checker) Reset() {
+	c.beforeBits = 0
+	c.termBits = 0
+	c.acceptBits = 0
 }
 
 func (c *checker) span(src []byte, atEOF bool) (n int, err error) {
 	for n < len(src) {
 		e, sz := dpTrie.lookup(src[n:])
-		switch {
-		case sz == 0:
+		d := categoryTransitions[category(e&catMask)]
+		if sz == 0 {
 			if !atEOF {
 				return n, transform.ErrShortSrc
 			}
-			fallthrough
-		case property(e) < c.p.class.validFrom:
 			return n, errDisallowedRune
+		}
+		if property(e) < c.p.class.validFrom {
+			if d.rule == nil {
+				return n, errDisallowedRune
+			}
+			doLookAhead, err := d.rule(c.beforeBits)
+			if err != nil {
+				return n, err
+			}
+			if doLookAhead {
+				c.beforeBits &= d.keep
+				c.beforeBits |= d.set
+				// We may still have a lookahead rule which we will require to
+				// complete (by checking termBits == 0) before setting the new
+				// bits.
+				if c.termBits != 0 && (!c.checkLookahead() || c.termBits == 0) {
+					return n, err
+				}
+				c.termBits = d.term
+				c.acceptBits = d.accept
+				n += sz
+				continue
+			}
+		}
+		c.beforeBits &= d.keep
+		c.beforeBits |= d.set
+		if c.termBits != 0 && !c.checkLookahead() {
+			return n, errContext
 		}
 		n += sz
 	}
-	return n, nil
+	if m := c.beforeBits >> finalShift; c.beforeBits&m != m || c.termBits != 0 {
+		err = errContext
+	}
+	return n, err
+}
+
+func (c *checker) checkLookahead() bool {
+	switch {
+	case c.beforeBits&c.termBits != 0:
+		c.termBits = 0
+		c.acceptBits = 0
+	case c.beforeBits&c.acceptBits != 0:
+	default:
+		return false
+	}
+	return true
 }
 
 // TODO: we may get rid of this transform if transform.Chain understands
 // something like a Spanner interface.
 func (c checker) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error) {
-	for nSrc < len(src) {
-		r, size := utf8.DecodeRune(src[nSrc:])
-		if size == 0 { // Incomplete UTF-8 encoding
-			if !atEOF {
-				return nDst, nSrc, transform.ErrShortSrc
-			}
-			size = 1
-		}
-		if c.allowed.Contains(r) {
-			if size != copy(dst[nDst:], src[nSrc:nSrc+size]) {
-				return nDst, nSrc, transform.ErrShortDst
-			}
-			nDst += size
-		} else {
-			return nDst, nSrc, errDisallowedRune
-		}
-		nSrc += size
+	short := false
+	if len(dst) < len(src) {
+		src = src[:len(dst)]
+		atEOF = false
+		short = true
 	}
-	return nDst, nSrc, nil
+	nSrc, err = c.span(src, atEOF)
+	nDst = copy(dst, src[:nSrc])
+	if short && (err == transform.ErrShortSrc || err == nil) {
+		err = transform.ErrShortDst
+	}
+	return nDst, nSrc, err
 }
