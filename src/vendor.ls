@@ -18,10 +18,6 @@ github.com/jlaffaye/ftp
 # https://godoc.org/github.com/CentaurWarchief/godbf
 github.com/CentaurWarchief/godbf
 
-# Package bytefmt contains helper methods and constants for converting to and from a human-readable byte format.
-# https://godoc.org/github.com/pivotal-golang/bytefmt
-github.com/pivotal-golang/bytefmt
-
 # Package charmap provides simple character encodings such as IBM Code Page 437 and Windows 1252.
 # https://godoc.org/golang.org/x/text/encoding/charmap
 golang.org/x/text/encoding/charmap
