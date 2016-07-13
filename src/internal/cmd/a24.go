@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"strconv"
 	"strings"
@@ -103,14 +102,10 @@ func (c *cmdA24) downloadXML() error {
 		return err
 	}
 
-	var n int
 	for i := range v.Offers {
 		c.mapXML[v.Offers[i].ID] = v.Offers[i]
-		if v.Offers[i].Price == 0 {
-			n++
-		}
 	}
-	fmt.Println("price 0.0 count:", n, len(v.Offers))
+
 	return nil
 }
 
@@ -248,15 +243,15 @@ func (c *cmdA24) uploadGzipJSONs() error {
 			return err
 		}
 
-		//err = c.pushGzipV1(b)
-		//if err != nil {
-		//	return err
-		//}
-
-		err = ioutil.WriteFile(k+".gz", b.Bytes(), 0666)
+		err = c.pushGzipV1(b)
 		if err != nil {
 			return err
 		}
+
+		//err = ioutil.WriteFile(k+".gz", b.Bytes(), 0666)
+		//if err != nil {
+		//	return err
+		//}
 	}
 
 	return nil
