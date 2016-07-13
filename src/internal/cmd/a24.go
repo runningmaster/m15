@@ -23,6 +23,7 @@ type cmdA24 struct {
 	cmdBase
 
 	flagXML string
+	flagCSV string
 
 	mapXML  map[string]offer
 	mapShop map[string]shop1
@@ -45,6 +46,7 @@ func newCmdA24() *cmdA24 {
 func (c *cmdA24) SetFlags(f *flag.FlagSet) {
 	(&c.cmdBase).SetFlags(f)
 	f.StringVar(&c.flagXML, "xml", "", "source scheme://user:pass@host:port[,...]")
+	f.StringVar(&c.flagCSV, "csv", "", "source scheme://user:pass@host:port[,...]")
 }
 
 func (c *cmdA24) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
@@ -63,15 +65,15 @@ func (c *cmdA24) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 		goto fail
 	}
 
-	err = c.transformXML()
-	if err != nil {
-		goto fail
-	}
-
-	//err = c.transformCSVs()
+	//err = c.transformXML()
 	//if err != nil {
 	//	goto fail
 	//}
+
+	err = c.transformCSVs()
+	if err != nil {
+		goto fail
+	}
 
 	err = c.uploadGzipJSONs()
 	if err != nil {
@@ -123,15 +125,15 @@ func (c *cmdA24) downloadCSVs() error {
 		c.parseRecordList(v.Record)
 	}
 
-	//for k, v := range c.mapShop {
-	//	r, err = c.pullData("http://" + v.File)
-	//	if err != nil {
-	//		log.Println(v.File)
-	//		//return err
-	//		continue
-	//	}
-	//	c.mapFile[k] = r
-	//}
+	for k, v := range c.mapShop {
+		r, err = c.pullData("http://" + v.File)
+		if err != nil {
+			log.Println(v.File)
+			//return err
+			continue
+		}
+		c.mapFile[k] = r
+	}
 
 	return nil
 }
@@ -169,7 +171,7 @@ func (c *cmdA24) transformCSVs() error {
 			if v.Error != nil {
 				continue
 			}
-			c.parseRecordFile(k, v.Record)
+			c.parseRecordFile2(k, v.Record)
 		}
 		// workaround for json's omitempty
 		v.File = ""
@@ -186,7 +188,7 @@ func (c *cmdA24) parseRecordList(r []string) {
 		Head:   r[2],
 		Addr:   r[3],
 		EGRPOU: r[4],
-		File:   r[5],
+		File:   c.flagCSV, //r[5],
 	}
 	c.mapShop[s.Code] = s
 }
@@ -211,6 +213,30 @@ func (c *cmdA24) parseRecordFile(s string, r []string) {
 		Link:  l,
 		Quant: quant,
 		Price: price,
+	}
+
+	c.mapProp[s] = append(c.mapProp[s], p)
+}
+
+// cvs scheme (file): [0]Код товара [1]Товар [2]Производитель [3]Факт [4]Упаковка [5]Срок годности [6]Классификация товара [7]Рецептурный отпуск [8]АТС-Классификация [9]АТС-Классификация (код)
+func (c *cmdA24) parseRecordFile2(s string, r []string) {
+	quant, err := strconv.ParseFloat("5", 64)
+	if err != nil {
+		return
+	}
+
+	v, ok := c.mapXML[r[0]]
+	if !ok {
+		return
+	}
+
+	p := prop1{
+		Code:  v.ID,
+		Name:  fmt.Sprintf("%s %s", r[1], r[2]),
+		Addr:  v.Url,
+		Link:  v.Url,
+		Quant: quant,
+		Price: v.Price,
 	}
 
 	c.mapProp[s] = append(c.mapProp[s], p)
