@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"strconv"
 	"strings"
@@ -24,7 +25,7 @@ type cmdA24 struct {
 
 	flagXML string
 
-	mapLink map[string]string
+	mapXML  map[string]offer
 	mapShop map[string]shop1
 	mapFile map[string]io.Reader
 	mapProp map[string][]prop1
@@ -32,10 +33,10 @@ type cmdA24 struct {
 
 func newCmdA24() *cmdA24 {
 	cmd := &cmdA24{
-		mapLink: make(map[string]string, 5000),
+		mapXML:  make(map[string]offer, 20000),
 		mapShop: make(map[string]shop1, 30),
 		mapFile: make(map[string]io.Reader, 30),
-		mapProp: make(map[string][]prop1, 5000),
+		mapProp: make(map[string][]prop1, 20000),
 	}
 	cmd.initBase("a24", "download and send to skynet gzip(json) files from site")
 	return cmd
@@ -63,10 +64,15 @@ func (c *cmdA24) Execute(ctx context.Context, f *flag.FlagSet, args ...interface
 		goto fail
 	}
 
-	err = c.transformCSVs()
+	err = c.transformXML()
 	if err != nil {
 		goto fail
 	}
+
+	//err = c.transformCSVs()
+	//if err != nil {
+	//	goto fail
+	//}
 
 	err = c.uploadGzipJSONs()
 	if err != nil {
@@ -85,15 +91,6 @@ fail:
 	return subcommands.ExitFailure
 }
 
-type linkXML struct {
-	Offers []offer `xml:"shop>offers>offer"`
-}
-
-type offer struct {
-	ID  string `xml:"id,attr"`
-	Url string `xml:"url"`
-}
-
 func (c *cmdA24) downloadXML() error {
 	r, err := c.pullData(c.flagXML)
 	if err != nil {
@@ -106,10 +103,14 @@ func (c *cmdA24) downloadXML() error {
 		return err
 	}
 
+	var n int
 	for i := range v.Offers {
-		c.mapLink[v.Offers[i].ID] = v.Offers[i].Url
+		c.mapXML[v.Offers[i].ID] = v.Offers[i]
+		if v.Offers[i].Price == 0 {
+			n++
+		}
 	}
-
+	fmt.Println("price 0.0 count:", n, len(v.Offers))
 	return nil
 }
 
@@ -127,16 +128,37 @@ func (c *cmdA24) downloadCSVs() error {
 		c.parseRecordList(v.Record)
 	}
 
-	for k, v := range c.mapShop {
-		r, err = c.pullData("http://" + v.File)
-		if err != nil {
-			log.Println(v.File)
-			//return err
-			continue
-		}
-		c.mapFile[k] = r
-	}
+	//for k, v := range c.mapShop {
+	//	r, err = c.pullData("http://" + v.File)
+	//	if err != nil {
+	//		log.Println(v.File)
+	//		//return err
+	//		continue
+	//	}
+	//	c.mapFile[k] = r
+	//}
 
+	return nil
+}
+
+func (c *cmdA24) transformXML() error {
+	quant, err := strconv.ParseFloat("5", 64)
+	if err != nil {
+		return err
+	}
+	for k, _ := range c.mapShop {
+		for _, v := range c.mapXML {
+			c.mapProp[k] = append(c.mapProp[k],
+				prop1{
+					Code:  v.ID,
+					Name:  strings.TrimSpace(fmt.Sprintf("%s %s", v.Name, v.Vend)),
+					Addr:  v.Url,
+					Link:  v.Url,
+					Quant: quant,
+					Price: v.Price,
+				})
+		}
+	}
 	return nil
 }
 
@@ -186,7 +208,7 @@ func (c *cmdA24) parseRecordFile(s string, r []string) {
 		return
 	}
 
-	l := c.mapLink[r[0]]
+	l := c.mapXML[r[0]].Url
 	p := prop1{
 		Code:  r[0],
 		Name:  fmt.Sprintf("%s %s", r[1], r[2]),
@@ -226,15 +248,15 @@ func (c *cmdA24) uploadGzipJSONs() error {
 			return err
 		}
 
-		err = c.pushGzipV1(b)
-		if err != nil {
-			return err
-		}
-
-		//err = ioutil.WriteFile(k+".gz", b.Bytes(), 0666)
+		//err = c.pushGzipV1(b)
 		//if err != nil {
 		//	return err
 		//}
+
+		err = ioutil.WriteFile(k+".gz", b.Bytes(), 0666)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -265,3 +287,25 @@ type price1 struct {
 	Meta shop1   `json:",omitempty"`
 	Data []prop1 `json:",omitempty"`
 }
+
+type linkXML struct {
+	Offers []offer `xml:"shop>offers>offer"`
+}
+
+type offer struct {
+	ID    string  `xml:"id,attr"`
+	Url   string  `xml:"url"`
+	Price float64 `xml:"price"`
+	Name  string  `xml:"name"`
+	Vend  string  `xml:"vendor"`
+}
+
+/*
+<offer id="464.0029">
+<url>http://apteka24.ua/peritol-tabletki-4mg-n20/</url>
+<price>77.52</price>
+<name>Перитол 4 мг N20</name>
+<vendor>ЗАТ"Фарм.завод Егіс, Угорщина</vendor>
+<param name="Quantity">1</param>
+</offer>
+*/
