@@ -3,9 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -15,9 +13,7 @@ import (
 	"internal/txtutil"
 	"internal/ziputil"
 
-	"github.com/google/subcommands"
 	"github.com/klauspost/compress/gzip"
-	"golang.org/x/net/context"
 )
 
 const (
@@ -47,53 +43,40 @@ type cmdAve struct {
 }
 
 func newCmdAve() *cmdAve {
-	cmd := &cmdAve{
+	return &cmdAve{
+		cmdBase: cmdBase{
+			name: "ave",
+			desc: "download, transform and send to skynet zip(csv) files from ftp",
+		},
 		mapFile: make(map[string]ftputil.Filer, capFile),
 		mapShop: make(map[string]shop, capShop),
 		mapDrug: make(map[string]drug, capDrug),
 		mapProp: make(map[string][]prop, capProp),
 	}
-	cmd.initBase("ave", "download, transform and send to skynet zip(csv) files from ftp")
-	return cmd
 }
 
-// Execute executes the command and returns an ExitStatus.
-func (c *cmdAve) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
+func (c *cmdAve) exec() error {
 	err := c.failFast()
 	if err != nil {
-		goto fail
+		return err
 	}
 
 	err = c.downloadZIPs()
 	if err != nil {
-		goto fail
+		return err
 	}
 
 	err = c.transformCSVs()
 	if err != nil {
-		goto fail
+		return err
 	}
 
 	err = c.uploadGzipJSONs()
 	if err != nil {
-		goto fail
+		return err
 	}
 
-	err = c.deleteZIPs()
-	if err != nil {
-		goto fail
-	}
-
-	return subcommands.ExitSuccess
-
-fail:
-	log.Println(err)
-	err = c.sendError(err)
-	if err != nil {
-		log.Println(err)
-	}
-
-	return subcommands.ExitFailure
+	return c.deleteZIPs()
 }
 
 func (c *cmdAve) downloadZIPs() error {

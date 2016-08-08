@@ -31,6 +31,7 @@ type cmdBase struct {
 	name string
 	desc string
 	exec func() error
+	sflg func(f *flag.FlagSet)
 
 	flagSRC string
 	flagSRV string
@@ -43,20 +44,6 @@ type cmdBase struct {
 	httpCli *http.Client
 	httpCtx context.Context
 	httpUsr string
-}
-
-func (c *cmdBase) initBase(name, desc string) {
-	c.name = name
-	c.desc = desc
-	c.httpCli = &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, // workaround
-			},
-		},
-	}
-	c.httpCtx = context.Background()
-	c.httpUsr = fmt.Sprintf("%s %s", version.AppName(), version.WithBuildInfo())
 }
 
 // Name returns the name of the command.
@@ -85,14 +72,24 @@ func (c *cmdBase) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&c.flagMGn, "mgn", "", "mailgun service mail://api:key@box.mailgun.org")
 	f.StringVar(&c.flagMFm, "mfm", "noreplay@example.com", "Mailgun from")
 	f.StringVar(&c.flagMTo, "mto", "", "mailgun to")
-}
 
-func (c *cmdBase) makeURL(path string) string {
-	return c.flagSRV + path
+	if c.sflg != nil {
+		c.sflg(f)
+	}
 }
 
 // Execute executes the command and returns an ExitStatus.
 func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
+	c.httpCli = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, // workaround
+			},
+		},
+	}
+	c.httpCtx = context.Background()
+	c.httpUsr = fmt.Sprintf("%s %s", version.AppName(), version.WithBuildInfo())
+
 	if c.exec == nil {
 		panic("exec func must be defined")
 	}
@@ -108,6 +105,10 @@ func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interfac
 	}
 
 	return subcommands.ExitSuccess
+}
+
+func (c *cmdBase) makeURL(path string) string {
+	return c.flagSRV + path
 }
 
 func (c *cmdBase) failFast() error {

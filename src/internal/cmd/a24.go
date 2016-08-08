@@ -14,9 +14,6 @@ import (
 
 	"internal/csvutil"
 	"internal/txtutil"
-
-	"github.com/google/subcommands"
-	"golang.org/x/net/context"
 )
 
 type cmdA24 struct {
@@ -32,64 +29,50 @@ type cmdA24 struct {
 }
 
 func newCmdA24() *cmdA24 {
-	cmd := &cmdA24{
+	return &cmdA24{
+		cmdBase: cmdBase{
+			name: "a24",
+			desc: "download and send to skynet gzip(json) files from site",
+		},
 		mapXML:  make(map[string]offer, 20000),
 		mapShop: make(map[string]shop1, 30),
 		mapFile: make(map[string]io.Reader, 30),
 		mapProp: make(map[string][]prop1, 20000),
 	}
-	cmd.initBase("a24", "download and send to skynet gzip(json) files from site")
-	return cmd
 }
 
-// SetFlags adds the flags for this command to the specified set.
-func (c *cmdA24) SetFlags(f *flag.FlagSet) {
-	(&c.cmdBase).SetFlags(f)
+func (c *cmdA24) setFlags(f *flag.FlagSet) {
 	f.StringVar(&c.flagXML, "xml", "", "source scheme://user:pass@host:port[,...]")
 	f.StringVar(&c.flagCSV, "csv", "", "source scheme://user:pass@host:port[,...]")
 }
 
-func (c *cmdA24) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
+func (c *cmdA24) exec() error {
 	err := c.failFast()
 	if err != nil {
-		goto fail
+		return err
 	}
 
 	err = c.downloadXML()
 	if err != nil {
-		goto fail
+		return err
 	}
 
 	err = c.downloadCSVs()
 	if err != nil {
-		goto fail
+		return err
 	}
 
 	//err = c.transformXML()
 	//if err != nil {
-	//	goto fail
+	//	return err
 	//}
 
 	err = c.transformCSVs()
 	if err != nil {
-		goto fail
+		return err
 	}
 
-	err = c.uploadGzipJSONs()
-	if err != nil {
-		goto fail
-	}
-
-	return subcommands.ExitSuccess
-
-fail:
-	log.Println(err)
-	err = c.sendError(err)
-	if err != nil {
-		log.Println(err)
-	}
-
-	return subcommands.ExitFailure
+	return c.uploadGzipJSONs()
 }
 
 func (c *cmdA24) downloadXML() error {
@@ -143,14 +126,14 @@ func (c *cmdA24) transformXML() error {
 	if err != nil {
 		return err
 	}
-	for k, _ := range c.mapShop {
+	for k := range c.mapShop {
 		for _, v := range c.mapXML {
 			c.mapProp[k] = append(c.mapProp[k],
 				prop1{
 					Code:  v.ID,
 					Name:  strings.TrimSpace(fmt.Sprintf("%s %s", v.Name, v.Vend)),
-					Addr:  v.Url,
-					Link:  v.Url,
+					Addr:  v.URL,
+					Link:  v.URL,
 					Quant: quant,
 					Price: v.Price,
 				})
@@ -205,7 +188,7 @@ func (c *cmdA24) parseRecordFile(s string, r []string) {
 		return
 	}
 
-	l := c.mapXML[r[0]].Url
+	l := c.mapXML[r[0]].URL
 	p := prop1{
 		Code:  r[0],
 		Name:  fmt.Sprintf("%s %s", r[1], r[2]),
@@ -233,8 +216,8 @@ func (c *cmdA24) parseRecordFile2(s string, r []string) {
 	p := prop1{
 		Code:  v.ID,
 		Name:  fmt.Sprintf("%s %s", r[1], r[2]),
-		Addr:  v.Url,
-		Link:  v.Url,
+		Addr:  v.URL,
+		Link:  v.URL,
 		Quant: quant,
 		Price: v.Price,
 	}
@@ -315,7 +298,7 @@ type linkXML struct {
 
 type offer struct {
 	ID    string  `xml:"id,attr"`
-	Url   string  `xml:"url"`
+	URL   string  `xml:"url"`
 	Price float64 `xml:"price"`
 	Name  string  `xml:"name"`
 	Vend  string  `xml:"vendor"`

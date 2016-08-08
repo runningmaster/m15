@@ -3,18 +3,14 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"log"
 	"strconv"
 
 	"internal/csvutil"
 	"internal/ftputil"
 	"internal/txtutil"
 
-	"github.com/google/subcommands"
 	"github.com/klauspost/compress/gzip"
-	"golang.org/x/net/context"
 )
 
 const (
@@ -32,54 +28,41 @@ type cmdStl struct {
 }
 
 func newCmdStl() *cmdStl {
-	cmd := &cmdStl{
+	return &cmdStl{
+		cmdBase: cmdBase{
+			name: "stl",
+			desc: "download, transform and send to skynet zip(csv) files from ftp",
+		},
 		files:   []string{"APT.csv", "SP.csv", "OST.csv"},
 		mapFile: make(map[string]ftputil.Filer, 3),
 		mapShop: make(map[string]shop, 20),
 		mapDrug: make(map[string]drug, 10000),
 		mapProp: make(map[string][]prop, 100000),
 	}
-	cmd.initBase("stl", "download, transform and send to skynet zip(csv) files from ftp")
-	return cmd
 }
 
-// Execute executes the command and returns an ExitStatus.
-func (c *cmdStl) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
+func (c *cmdStl) exec() error {
 	err := c.failFast()
 	if err != nil {
-		goto fail
+		return err
 	}
 
 	err = c.downloadCSVs()
 	if err != nil {
-		goto fail
+		return err
 	}
 
 	err = c.transformCSVs()
 	if err != nil {
-		goto fail
+		return err
 	}
 
 	err = c.uploadGzipJSONs()
 	if err != nil {
-		goto fail
+		return err
 	}
 
-	err = c.deleteCSVs()
-	if err != nil {
-		goto fail
-	}
-
-	return subcommands.ExitSuccess
-
-fail:
-	log.Println(err)
-	err = c.sendError(err)
-	if err != nil {
-		log.Println(err)
-	}
-
-	return subcommands.ExitFailure
+	return c.deleteCSVs()
 }
 
 func (c *cmdStl) downloadCSVs() error {

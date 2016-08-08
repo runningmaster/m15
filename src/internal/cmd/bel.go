@@ -3,10 +3,8 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -15,9 +13,7 @@ import (
 	"internal/ziputil"
 
 	dbf "github.com/CentaurWarchief/godbf"
-	"github.com/google/subcommands"
 	"github.com/klauspost/compress/gzip"
-	"golang.org/x/net/context"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
 )
@@ -31,52 +27,39 @@ type cmdBel struct {
 }
 
 func newCmdBel() *cmdBel {
-	cmd := &cmdBel{
+	return &cmdBel{
+		cmdBase: cmdBase{
+			name: "bel",
+			desc: "download, transform and send to skynet zip(dbf) files from ftp",
+		},
 		mapFile: make(map[string]ftputil.Filer, 100),
 		mapDele: make(map[string][]string, 100),
 		mapJSON: make(map[string]interface{}, 100),
 	}
-	cmd.initBase("bel", "download, transform and send to skynet zip(dbf) files from ftp")
-	return cmd
 }
 
-// Execute executes the command and returns an ExitStatus.
-func (c *cmdBel) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
+func (c *cmdBel) exec() error {
 	err := c.failFast()
 	if err != nil {
-		goto fail
+		return err
 	}
 
 	err = c.downloadZIPs()
 	if err != nil {
-		goto fail
+		return err
 	}
 
 	err = c.transformDBFs()
 	if err != nil {
-		goto fail
+		return err
 	}
 
-	err = c.uploadGzipJSONs()
-	if err != nil {
-		goto fail
-	}
+	return c.uploadGzipJSONs()
 
 	//err = c.deleteZIPs()
 	//if err != nil {
-	//	goto fail
+	//	return err
 	//}
-
-	return subcommands.ExitSuccess
-
-fail:
-	log.Println(err)
-	err = c.sendError(err)
-	if err != nil {
-		log.Println(err)
-	}
-
-	return subcommands.ExitFailure
 }
 
 func (c *cmdBel) downloadZIPs() error {

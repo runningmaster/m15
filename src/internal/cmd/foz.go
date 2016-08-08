@@ -2,15 +2,10 @@ package cmd
 
 import (
 	"encoding/json"
-	"flag"
-	"log"
 	"path/filepath"
 	"strings"
 
 	"internal/mailutil"
-
-	"github.com/google/subcommands"
-	"golang.org/x/net/context"
 )
 
 type cmdFoz struct {
@@ -18,33 +13,21 @@ type cmdFoz struct {
 }
 
 func newCmdFoz() *cmdFoz {
-	cmd := &cmdFoz{}
-	cmd.initBase("foz", "download and send to skynet gzip(json) files from email")
-	return cmd
+	return &cmdFoz{
+		cmdBase: cmdBase{
+			name: "foz",
+			desc: "download and send to skynet gzip(json) files from email",
+		},
+	}
 }
 
-// Execute executes the command and returns an ExitStatus.
-func (c *cmdFoz) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
+func (c *cmdFoz) exec() error {
 	err := c.failFast()
 	if err != nil {
-		goto fail
+		return err
 	}
 
-	err = c.downloadAndPushGzips()
-	if err != nil {
-		goto fail
-	}
-
-	return subcommands.ExitSuccess
-
-fail:
-	log.Println(err)
-	err = c.sendError(err)
-	if err != nil {
-		log.Println(err)
-	}
-
-	return subcommands.ExitFailure
+	return c.downloadAndPushGzips()
 }
 
 func (c *cmdFoz) downloadAndPushGzips() error {
