@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -29,6 +30,7 @@ func Register() {
 type cmdBase struct {
 	name string
 	desc string
+	exec func() error
 
 	flagSRC string
 	flagSRV string
@@ -87,6 +89,25 @@ func (c *cmdBase) SetFlags(f *flag.FlagSet) {
 
 func (c *cmdBase) makeURL(path string) string {
 	return c.flagSRV + path
+}
+
+// Execute executes the command and returns an ExitStatus.
+func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
+	if c.exec == nil {
+		panic("exec func must be defined")
+	}
+
+	err := c.exec()
+	if err != nil {
+		log.Println(err)
+		err = c.sendError(err)
+		if err != nil {
+			log.Println(err)
+		}
+		return subcommands.ExitFailure
+	}
+
+	return subcommands.ExitSuccess
 }
 
 func (c *cmdBase) failFast() error {
