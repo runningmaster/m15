@@ -178,7 +178,7 @@ func (c *cmdBase) pullData(url string) (io.Reader, error) {
 }
 
 func (c *cmdBase) pushGzipV1(r io.Reader) error {
-	ctx, _ := context.WithTimeout(c.httpCtx, 30*time.Second)
+	ctx, _ := context.WithTimeout(c.httpCtx, 60*time.Second)
 	cli := c.httpCli
 	url := c.makeURL("/data/add" + "?key=" + c.flagKey)
 
@@ -209,7 +209,7 @@ func (c *cmdBase) pushGzipV1(r io.Reader) error {
 }
 
 func (c *cmdBase) pushGzipV2(r io.Reader) error {
-	ctx, _ := context.WithTimeout(c.httpCtx, 30*time.Second)
+	ctx, _ := context.WithTimeout(c.httpCtx, 60*time.Second)
 	cli := c.httpCli
 	url := c.makeURL("/data/add")
 
