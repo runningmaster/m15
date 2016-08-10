@@ -25,13 +25,21 @@ func Register() {
 	subcommands.Register(newCmdBel(), "")
 	subcommands.Register(newCmdA24(), "")
 	subcommands.Register(newCmdStl(), "")
+	subcommands.Register(newCmdTst(), "")
+}
+
+type execer interface {
+	exec() error
+}
+
+type flager interface {
+	setFlags(*flag.FlagSet)
 }
 
 type cmdBase struct {
+	cmd  interface{}
 	name string
 	desc string
-	exec func() error
-	sflg func(f *flag.FlagSet)
 
 	flagSRC string
 	flagSRV string
@@ -44,6 +52,26 @@ type cmdBase struct {
 	httpCli *http.Client
 	httpCtx context.Context
 	httpUsr string
+}
+
+func (c *cmdBase) mustInitBase(cmd interface{}, name, desc string) {
+	if cmd == nil {
+		panic("cmd must be defined")
+	}
+
+	c.cmd = cmd
+	c.name = name
+	c.desc = desc
+
+	c.httpCli = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, // workaround
+			},
+		},
+	}
+	c.httpCtx = context.Background()
+	c.httpUsr = fmt.Sprintf("%s %s", version.AppName(), version.WithBuildInfo())
 }
 
 // Name returns the name of the command.
@@ -73,28 +101,20 @@ func (c *cmdBase) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&c.flagMFm, "mfm", "noreplay@example.com", "Mailgun from")
 	f.StringVar(&c.flagMTo, "mto", "", "mailgun to")
 
-	if c.sflg != nil {
-		c.sflg(f)
+	if i, ok := c.cmd.(flager); ok {
+		i.setFlags(f)
 	}
 }
 
 // Execute executes the command and returns an ExitStatus.
 func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
-	c.httpCli = &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, // workaround
-			},
-		},
-	}
-	c.httpCtx = context.Background()
-	c.httpUsr = fmt.Sprintf("%s %s", version.AppName(), version.WithBuildInfo())
-
-	if c.exec == nil {
-		panic("exec func must be defined")
+	var err error
+	if i, ok := c.cmd.(execer); ok {
+		err = i.exec()
+	} else {
+		err = fmt.Errorf("no exec() in interface")
 	}
 
-	err := c.exec()
 	if err != nil {
 		log.Println(err)
 		err = c.sendError(err)

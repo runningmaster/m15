@@ -29,16 +29,14 @@ type cmdA24 struct {
 }
 
 func newCmdA24() *cmdA24 {
-	return &cmdA24{
-		cmdBase: cmdBase{
-			name: "a24",
-			desc: "download and send to skynet gzip(json) files from site",
-		},
+	cmd := &cmdA24{
 		mapXML:  make(map[string]offer, 20000),
 		mapShop: make(map[string]shop1, 30),
 		mapFile: make(map[string]io.Reader, 30),
 		mapProp: make(map[string][]prop1, 20000),
 	}
+	cmd.mustInitBase(cmd, "a24", "download and send to skynet gzip(json) files from site")
+	return cmd
 }
 
 func (c *cmdA24) setFlags(f *flag.FlagSet) {

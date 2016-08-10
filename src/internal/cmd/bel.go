@@ -27,15 +27,13 @@ type cmdBel struct {
 }
 
 func newCmdBel() *cmdBel {
-	return &cmdBel{
-		cmdBase: cmdBase{
-			name: "bel",
-			desc: "download, transform and send to skynet zip(dbf) files from ftp",
-		},
+	cmd := &cmdBel{
 		mapFile: make(map[string]ftputil.Filer, 100),
 		mapDele: make(map[string][]string, 100),
 		mapJSON: make(map[string]interface{}, 100),
 	}
+	cmd.mustInitBase(cmd, "bel", "download, transform and send to skynet zip(dbf) files from ftp")
+	return cmd
 }
 
 func (c *cmdBel) exec() error {

@@ -43,16 +43,14 @@ type cmdAve struct {
 }
 
 func newCmdAve() *cmdAve {
-	return &cmdAve{
-		cmdBase: cmdBase{
-			name: "ave",
-			desc: "download, transform and send to skynet zip(csv) files from ftp",
-		},
+	cmd := &cmdAve{
 		mapFile: make(map[string]ftputil.Filer, capFile),
 		mapShop: make(map[string]shop, capShop),
 		mapDrug: make(map[string]drug, capDrug),
 		mapProp: make(map[string][]prop, capProp),
 	}
+	cmd.mustInitBase(cmd, "ave", "download, transform and send to skynet zip(csv) files from ftp")
+	return cmd
 }
 
 func (c *cmdAve) exec() error {

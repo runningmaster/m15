@@ -28,17 +28,15 @@ type cmdStl struct {
 }
 
 func newCmdStl() *cmdStl {
-	return &cmdStl{
-		cmdBase: cmdBase{
-			name: "stl",
-			desc: "download, transform and send to skynet zip(csv) files from ftp",
-		},
+	cmd := &cmdStl{
 		files:   []string{"APT.csv", "SP.csv", "OST.csv"},
 		mapFile: make(map[string]ftputil.Filer, 3),
 		mapShop: make(map[string]shop, 20),
 		mapDrug: make(map[string]drug, 10000),
 		mapProp: make(map[string][]prop, 100000),
 	}
+	cmd.mustInitBase(cmd, "stl", "download, transform and send to skynet zip(csv) files from ftp")
+	return cmd
 }
 
 func (c *cmdStl) exec() error {

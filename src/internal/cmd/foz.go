@@ -13,12 +13,9 @@ type cmdFoz struct {
 }
 
 func newCmdFoz() *cmdFoz {
-	return &cmdFoz{
-		cmdBase: cmdBase{
-			name: "foz",
-			desc: "download and send to skynet gzip(json) files from email",
-		},
-	}
+	cmd := &cmdFoz{}
+	cmd.mustInitBase(cmd, "foz", "download and send to skynet gzip(json) files from email")
+	return cmd
 }
 
 func (c *cmdFoz) exec() error {
