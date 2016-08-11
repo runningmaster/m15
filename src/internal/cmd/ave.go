@@ -202,6 +202,7 @@ func (c *cmdAve) uploadGzipJSONs() error {
 		return err
 	}
 
+	var n int
 	for k, v := range c.mapProp {
 		p := price{
 			Meta: c.mapShop[k],
@@ -221,7 +222,8 @@ func (c *cmdAve) uploadGzipJSONs() error {
 			return err
 		}
 
-		err = c.pushGzipV2(b)
+		n++
+		err = c.pushGzipV2(b, fmt.Sprintf("%s (%d) %s %d", c.name, n, p.Meta.ID, len(p.Data)))
 		if err != nil {
 			return err
 		}

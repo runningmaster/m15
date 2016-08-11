@@ -23,14 +23,14 @@ type cmdBel struct {
 
 	mapFile map[string]ftputil.Filer
 	mapDele map[string][]string // for clean up
-	mapJSON map[string]interface{}
+	mapJSON map[string]priceOld
 }
 
 func newCmdBel() *cmdBel {
 	cmd := &cmdBel{
 		mapFile: make(map[string]ftputil.Filer, 100),
 		mapDele: make(map[string][]string, 100),
-		mapJSON: make(map[string]interface{}, 100),
+		mapJSON: make(map[string]priceOld, 100),
 	}
 	cmd.mustInitBase(cmd, "bel", "download, transform and send to skynet zip(dbf) files from ftp")
 	return cmd
@@ -172,6 +172,7 @@ func (c *cmdBel) uploadGzipJSONs() error {
 		return err
 	}
 
+	var n int
 	for _, v := range c.mapJSON {
 		b.Reset()
 		w.Reset(b)
@@ -186,7 +187,15 @@ func (c *cmdBel) uploadGzipJSONs() error {
 			return err
 		}
 
-		err = c.pushGzipV1(b)
+		n++
+		s := fmt.Sprintf("%s (%d)", c.name, n)
+		if len(v.Data) > 0 {
+			s = fmt.Sprintf("%s %s %d", s, v.Data[0].Head.Source, len(v.Data[0].Item))
+		} else {
+			s = fmt.Sprintf("%s %s %d", s, "?", 0)
+		}
+
+		err = c.pushGzipV1(b, s)
 		if err != nil {
 			return err
 		}

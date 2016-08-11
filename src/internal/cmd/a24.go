@@ -109,7 +109,7 @@ func (c *cmdA24) downloadCSVs() error {
 	for k, v := range c.mapShop {
 		r, err = c.pullData("http://" + v.File)
 		if err != nil {
-			log.Println(v.File)
+			log.Println(c.name, v.File)
 			//return err
 			continue
 		}
@@ -231,6 +231,11 @@ func (c *cmdA24) uploadGzipJSONs() error {
 		return err
 	}
 
+	if len(c.mapProp) == 0 {
+		return fmt.Errorf("%s: offers not found", c.name)
+	}
+
+	var n int
 	for k, v := range c.mapProp {
 		p := price1{
 			Meta: c.mapShop[k],
@@ -250,7 +255,8 @@ func (c *cmdA24) uploadGzipJSONs() error {
 			return err
 		}
 
-		err = c.pushGzipV1(b)
+		n++
+		err = c.pushGzipV1(b, fmt.Sprintf("%s (%d) %s %d", c.name, n, p.Meta.Code, len(p.Data)))
 		if err != nil {
 			return err
 		}
@@ -301,13 +307,3 @@ type offer struct {
 	Name  string  `xml:"name"`
 	Vend  string  `xml:"vendor"`
 }
-
-/*
-<offer id="464.0029">
-<url>http://apteka24.ua/peritol-tabletki-4mg-n20/</url>
-<price>77.52</price>
-<name>Перитол 4 мг N20</name>
-<vendor>ЗАТ"Фарм.завод Егіс, Угорщина</vendor>
-<param name="Quantity">1</param>
-</offer>
-*/

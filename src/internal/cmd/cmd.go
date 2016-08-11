@@ -15,7 +15,6 @@ import (
 
 	"github.com/google/subcommands"
 	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 )
 
 // Register registers commands in subcommands
@@ -52,6 +51,7 @@ type cmdBase struct {
 	httpCli *http.Client
 	httpCtx context.Context
 	httpUsr string
+	timeout time.Duration
 }
 
 func (c *cmdBase) mustInitBase(cmd interface{}, name, desc string) {
@@ -72,6 +72,7 @@ func (c *cmdBase) mustInitBase(cmd interface{}, name, desc string) {
 	}
 	c.httpCtx = context.Background()
 	c.httpUsr = fmt.Sprintf("%s %s", version.AppName(), version.WithBuildInfo())
+	c.timeout = 60 * time.Second
 }
 
 // Name returns the name of the command.
@@ -108,6 +109,9 @@ func (c *cmdBase) SetFlags(f *flag.FlagSet) {
 
 // Execute executes the command and returns an ExitStatus.
 func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
+	t := time.Now()
+	log.Println(c.name, "executing...")
+
 	var err error
 	if i, ok := c.cmd.(execer); ok {
 		err = i.exec()
@@ -116,7 +120,7 @@ func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interfac
 	}
 
 	if err != nil {
-		log.Println(err)
+		log.Println(c.name, "err:", err)
 		err = c.sendError(err)
 		if err != nil {
 			log.Println(err)
@@ -124,6 +128,7 @@ func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interfac
 		return subcommands.ExitFailure
 	}
 
+	log.Println(c.name, "done", time.Since(t).String())
 	return subcommands.ExitSuccess
 }
 
@@ -132,11 +137,17 @@ func (c *cmdBase) makeURL(path string) string {
 }
 
 func (c *cmdBase) failFast() error {
-	ctx, _ := context.WithTimeout(c.httpCtx, 10*time.Second)
-	cli := c.httpCli
-	url := c.makeURL("/ping")
+	ctx, cancel := context.WithTimeout(c.httpCtx, c.timeout)
+	defer cancel()
 
-	res, err := ctxhttp.Get(ctx, cli, url)
+	url := c.makeURL("/ping")
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	req = req.WithContext(ctx)
+
+	res, err := c.httpCli.Do(req)
 	if err != nil {
 		return err
 	}
@@ -154,15 +165,18 @@ func (c *cmdBase) failFast() error {
 }
 
 func (c *cmdBase) pullData(url string) (io.Reader, error) {
-	ctx, _ := context.WithTimeout(c.httpCtx, 30*time.Second)
-	cli := c.httpCli
+	t := time.Now()
+
+	ctx, cancel := context.WithTimeout(c.httpCtx, c.timeout)
+	defer cancel()
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
+	req = req.WithContext(ctx)
 
-	res, err := ctxhttp.Do(ctx, cli, req)
+	res, err := c.httpCli.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -174,26 +188,31 @@ func (c *cmdBase) pullData(url string) (io.Reader, error) {
 
 	buf := new(bytes.Buffer)
 	_, err = buf.ReadFrom(res.Body)
+
+	log.Println("pull", url, time.Since(t).String())
 	return buf, err
 }
 
-func (c *cmdBase) pushGzipV1(r io.Reader) error {
-	ctx, _ := context.WithTimeout(c.httpCtx, 60*time.Second)
-	cli := c.httpCli
-	url := c.makeURL("/data/add" + "?key=" + c.flagKey)
+func (c *cmdBase) pushGzipV1(r io.Reader, s string) error {
+	t := time.Now()
 
+	ctx, cancel := context.WithTimeout(c.httpCtx, c.timeout)
+	defer cancel()
+
+	url := c.makeURL("/data/add" + "?key=" + c.flagKey)
 	req, err := http.NewRequest("POST", url, r)
 	if err != nil {
 		return err
 	}
+	req = req.WithContext(ctx)
 
 	req.Header.Set("Content-Encoding", "application/x-gzip")
 	req.Header.Set("Content-Type", "application/json; charset=utf-8; hashtag="+c.flagTag)
 	req.Header.Set("User-Agent", c.httpUsr)
 
-	res, err := ctxhttp.Do(ctx, cli, req)
+	res, err := c.httpCli.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("%v (%s)", err, time.Since(t).String())
 	}
 
 	err = res.Body.Close()
@@ -205,18 +224,23 @@ func (c *cmdBase) pushGzipV1(r io.Reader) error {
 		return fmt.Errorf("cmd: push failed with code %d", res.StatusCode)
 	}
 
+	log.Println(s, time.Since(t).String())
 	return nil
 }
 
-func (c *cmdBase) pushGzipV2(r io.Reader) error {
-	ctx, _ := context.WithTimeout(c.httpCtx, 60*time.Second)
-	cli := c.httpCli
+func (c *cmdBase) pushGzipV2(r io.Reader, s string) error {
+	t := time.Now()
+
+	ctx, cancel := context.WithTimeout(c.httpCtx, c.timeout)
+	defer cancel()
+
 	url := c.makeURL("/data/add")
 
 	req, err := http.NewRequest("POST", url, r)
 	if err != nil {
 		return err
 	}
+	req = req.WithContext(ctx)
 
 	req.Header.Set("Content-Encoding", "application/x-gzip")
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
@@ -224,9 +248,9 @@ func (c *cmdBase) pushGzipV2(r io.Reader) error {
 	req.Header.Set("X-Morion-Skynet-Key", c.flagKey)
 	req.Header.Set("X-Morion-Skynet-Tag", c.flagTag)
 
-	res, err := ctxhttp.Do(ctx, cli, req)
+	res, err := c.httpCli.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("%v (%s)", err, time.Since(t).String())
 	}
 
 	err = res.Body.Close()
@@ -238,6 +262,7 @@ func (c *cmdBase) pushGzipV2(r io.Reader) error {
 		return fmt.Errorf("cmd: push failed with code %d", res.StatusCode)
 	}
 
+	log.Println(s, time.Since(t).String())
 	return nil
 }
 

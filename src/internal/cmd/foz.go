@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -36,6 +37,7 @@ func (c *cmdFoz) downloadAndPushGzips() error {
 		true,
 	)
 
+	var n int
 	for v := range vCh {
 		if v.Error != nil {
 			return v.Error
@@ -45,7 +47,8 @@ func (c *cmdFoz) downloadAndPushGzips() error {
 			c.flagKey, c.flagTag = key, tag
 		}
 
-		err := c.pushGzipV1(v.File)
+		n++
+		err := c.pushGzipV1(v.File, fmt.Sprintf("%s (%d) %s", c.name, n, v.File.Name()))
 		if err != nil {
 			return err
 		}
