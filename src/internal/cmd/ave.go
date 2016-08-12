@@ -33,6 +33,35 @@ var (
 	walkWay = []string{fileApt, fileTov, fileOst} // strong order files
 )
 
+// Data structs
+
+type shop struct {
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+	Head string `json:"head,omitempty"`
+	Addr string `json:"addr,omitempty"`
+	Code string `json:"code,omitempty"`
+}
+
+type drug struct {
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+}
+
+type prop struct {
+	ID    string  `json:"id,omitempty"`
+	Name  string  `json:"name,omitempty"`
+	Quant float64 `json:"quant,omitempty"`
+	Price float64 `json:"price,omitempty"`
+}
+
+type price struct {
+	Meta shop   `json:"meta,omitempty"`
+	Data []prop `json:"data,omitempty"`
+}
+
+// Command
+
 type cmdAve struct {
 	cmdBase
 
@@ -230,31 +259,4 @@ func (c *cmdAve) uploadGzipJSONs() error {
 	}
 
 	return nil
-}
-
-// Data structs
-
-type shop struct {
-	ID   string `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
-	Head string `json:"head,omitempty"`
-	Addr string `json:"addr,omitempty"`
-	Code string `json:"code,omitempty"`
-}
-
-type drug struct {
-	ID   string `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
-}
-
-type prop struct {
-	ID    string  `json:"id,omitempty"`
-	Name  string  `json:"name,omitempty"`
-	Quant float64 `json:"quant,omitempty"`
-	Price float64 `json:"price,omitempty"`
-}
-
-type price struct {
-	Meta shop   `json:"meta,omitempty"`
-	Data []prop `json:"data,omitempty"`
 }

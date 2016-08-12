@@ -16,6 +16,46 @@ import (
 	"internal/txtutil"
 )
 
+// Data structs
+
+type shop1 struct {
+	Code   string `json:",omitempty"`
+	Name   string `json:",omitempty"`
+	Head   string `json:",omitempty"`
+	Addr   string `json:",omitempty"`
+	EGRPOU string `json:",omitempty"`
+	File   string `json:",omitempty"`
+}
+
+type prop1 struct {
+	Code  string  `json:",omitempty"`
+	Name  string  `json:",omitempty"`
+	Desc  string  `json:",omitempty"`
+	Addr  string  `json:",omitempty"`
+	Link  string  `json:",omitempty"`
+	Quant float64 `json:",omitempty"`
+	Price float64 `json:",omitempty"`
+}
+
+type price1 struct {
+	Meta shop1   `json:",omitempty"`
+	Data []prop1 `json:",omitempty"`
+}
+
+type linkXML struct {
+	Offers []offer `xml:"shop>offers>offer"`
+}
+
+type offer struct {
+	ID    string  `xml:"id,attr"`
+	URL   string  `xml:"url"`
+	Price float64 `xml:"price"`
+	Name  string  `xml:"name"`
+	Vend  string  `xml:"vendor"`
+}
+
+// Command
+
 type cmdA24 struct {
 	cmdBase
 
@@ -268,42 +308,4 @@ func (c *cmdA24) uploadGzipJSONs() error {
 	}
 
 	return nil
-}
-
-// Data structs
-
-type shop1 struct {
-	Code   string `json:",omitempty"`
-	Name   string `json:",omitempty"`
-	Head   string `json:",omitempty"`
-	Addr   string `json:",omitempty"`
-	EGRPOU string `json:",omitempty"`
-	File   string `json:",omitempty"`
-}
-
-type prop1 struct {
-	Code  string  `json:",omitempty"`
-	Name  string  `json:",omitempty"`
-	Desc  string  `json:",omitempty"`
-	Addr  string  `json:",omitempty"`
-	Link  string  `json:",omitempty"`
-	Quant float64 `json:",omitempty"`
-	Price float64 `json:",omitempty"`
-}
-
-type price1 struct {
-	Meta shop1   `json:",omitempty"`
-	Data []prop1 `json:",omitempty"`
-}
-
-type linkXML struct {
-	Offers []offer `xml:"shop>offers>offer"`
-}
-
-type offer struct {
-	ID    string  `xml:"id,attr"`
-	URL   string  `xml:"url"`
-	Price float64 `xml:"price"`
-	Name  string  `xml:"name"`
-	Vend  string  `xml:"vendor"`
 }

@@ -18,6 +18,43 @@ import (
 	"golang.org/x/text/transform"
 )
 
+// Data structs
+
+type meta struct {
+	Timestamp   string `json:",omitempty"`
+	TRangeLower string `json:",omitempty"`
+	TRangeUpper string `json:",omitempty"`
+}
+
+type item struct {
+	Code     string  `json:",omitempty"`
+	Drug     string  `json:",omitempty"`
+	QuantInp float64 `json:",omitempty"`
+	QuantOut float64 `json:",omitempty"`
+	PriceInp float64 `json:",omitempty"`
+	PriceOut float64 `json:",omitempty"`
+	PriceRoc float64 `json:",omitempty"`
+	Balance  float64 `json:",omitempty"`
+	BalanceT float64 `json:",omitempty"`
+}
+
+type head struct {
+	Source    string `json:",omitempty"`
+	Drugstore string `json:",omitempty"`
+}
+
+type data struct {
+	Head head   `json:",omitempty"`
+	Item []item `json:",omitempty"`
+}
+
+type priceOld struct {
+	Meta meta   `json:",omitempty"`
+	Data []data `json:",omitempty"`
+}
+
+// Command
+
 type cmdBel struct {
 	cmdBase
 
@@ -245,39 +282,4 @@ func castToTimeStringSafely(v interface{}) string {
 	}
 
 	return ""
-}
-
-// Data structs
-
-type meta struct {
-	Timestamp   string `json:",omitempty"`
-	TRangeLower string `json:",omitempty"`
-	TRangeUpper string `json:",omitempty"`
-}
-
-type item struct {
-	Code     string  `json:",omitempty"`
-	Drug     string  `json:",omitempty"`
-	QuantInp float64 `json:",omitempty"`
-	QuantOut float64 `json:",omitempty"`
-	PriceInp float64 `json:",omitempty"`
-	PriceOut float64 `json:",omitempty"`
-	PriceRoc float64 `json:",omitempty"`
-	Balance  float64 `json:",omitempty"`
-	BalanceT float64 `json:",omitempty"`
-}
-
-type head struct {
-	Source    string `json:",omitempty"`
-	Drugstore string `json:",omitempty"`
-}
-
-type data struct {
-	Head head   `json:",omitempty"`
-	Item []item `json:",omitempty"`
-}
-
-type priceOld struct {
-	Meta meta   `json:",omitempty"`
-	Data []data `json:",omitempty"`
 }

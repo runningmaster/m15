@@ -17,6 +17,8 @@ const (
 	stlHead = "STL" // magic const
 )
 
+// Command
+
 type cmdStl struct {
 	cmdBase
 	files []string

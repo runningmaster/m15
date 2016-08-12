@@ -17,14 +17,23 @@ import (
 	"golang.org/x/net/context"
 )
 
-// Register registers commands in subcommands
-func Register() {
+type apiV int
+
+const (
+	v1 apiV = iota + 1
+	v2
+)
+
+// Run registers commands in subcommands and execute it
+func Run() int {
 	subcommands.Register(newCmdAve(), "")
 	subcommands.Register(newCmdFoz(), "")
 	subcommands.Register(newCmdBel(), "")
 	subcommands.Register(newCmdA24(), "")
 	subcommands.Register(newCmdStl(), "")
 	subcommands.Register(newCmdTst(), "")
+
+	return int(subcommands.Execute(context.Background()))
 }
 
 type execer interface {
@@ -51,6 +60,7 @@ type cmdBase struct {
 	httpCli *http.Client
 	httpCtx context.Context
 	httpUsr string
+
 	timeout time.Duration
 }
 
@@ -133,7 +143,7 @@ func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interfac
 }
 
 func (c *cmdBase) makeURL(path string) string {
-	return c.flagSRV + path
+	return fmt.Sprintf("%s%s", c.flagSRV, path)
 }
 
 func (c *cmdBase) failFast() error {
@@ -193,13 +203,20 @@ func (c *cmdBase) pullData(url string) (io.Reader, error) {
 	return buf, err
 }
 
-func (c *cmdBase) pushGzipV1(r io.Reader, s string) error {
+func (c *cmdBase) pushGzip(r io.Reader, s string, v apiV) error {
 	t := time.Now()
 
 	ctx, cancel := context.WithTimeout(c.httpCtx, c.timeout)
 	defer cancel()
 
-	url := c.makeURL("/data/add" + "?key=" + c.flagKey)
+	var url string
+	switch v {
+	case v1:
+		url = c.makeURL("/data/add")
+	case v2:
+		url = c.makeURL("/data/add?key=") + c.flagKey
+	}
+
 	req, err := http.NewRequest("POST", url, r)
 	if err != nil {
 		return err
@@ -207,8 +224,15 @@ func (c *cmdBase) pushGzipV1(r io.Reader, s string) error {
 	req = req.WithContext(ctx)
 
 	req.Header.Set("Content-Encoding", "application/x-gzip")
-	req.Header.Set("Content-Type", "application/json; charset=utf-8; hashtag="+c.flagTag)
 	req.Header.Set("User-Agent", c.httpUsr)
+	switch v {
+	case v1:
+		req.Header.Set("Content-Type", "application/json; charset=utf-8; hashtag="+c.flagTag)
+	case v2:
+		req.Header.Set("Content-Type", "application/json; charset=utf-8")
+		req.Header.Set("X-Morion-Skynet-Key", c.flagKey)
+		req.Header.Set("X-Morion-Skynet-Tag", c.flagTag)
+	}
 
 	res, err := c.httpCli.Do(req)
 	if err != nil {
@@ -228,42 +252,12 @@ func (c *cmdBase) pushGzipV1(r io.Reader, s string) error {
 	return nil
 }
 
+func (c *cmdBase) pushGzipV1(r io.Reader, s string) error {
+	return c.pushGzip(r, s, v1)
+}
+
 func (c *cmdBase) pushGzipV2(r io.Reader, s string) error {
-	t := time.Now()
-
-	ctx, cancel := context.WithTimeout(c.httpCtx, c.timeout)
-	defer cancel()
-
-	url := c.makeURL("/data/add")
-
-	req, err := http.NewRequest("POST", url, r)
-	if err != nil {
-		return err
-	}
-	req = req.WithContext(ctx)
-
-	req.Header.Set("Content-Encoding", "application/x-gzip")
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("User-Agent", c.httpUsr)
-	req.Header.Set("X-Morion-Skynet-Key", c.flagKey)
-	req.Header.Set("X-Morion-Skynet-Tag", c.flagTag)
-
-	res, err := c.httpCli.Do(req)
-	if err != nil {
-		return fmt.Errorf("%v (%s)", err, time.Since(t).String())
-	}
-
-	err = res.Body.Close()
-	if err != nil {
-		return err
-	}
-
-	if res.StatusCode >= 300 {
-		return fmt.Errorf("cmd: push failed with code %d", res.StatusCode)
-	}
-
-	log.Println(s, time.Since(t).String())
-	return nil
+	return c.pushGzip(r, s, v2)
 }
 
 func (c *cmdBase) sendError(err error) error {

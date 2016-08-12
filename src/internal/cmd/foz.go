@@ -9,6 +9,8 @@ import (
 	"internal/mailutil"
 )
 
+// Command DEPRECATED
+
 type cmdFoz struct {
 	cmdBase
 }
