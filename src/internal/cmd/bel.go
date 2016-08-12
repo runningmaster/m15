@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -12,7 +13,7 @@ import (
 	"internal/ftputil"
 	"internal/ziputil"
 
-	dbf "github.com/CentaurWarchief/godbf"
+	"github.com/CentaurWarchief/dbf"
 	"github.com/klauspost/compress/gzip"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
@@ -136,16 +137,17 @@ func (c *cmdBel) transformDBFs() error {
 			return err
 		}
 
-		b, err := ioutil.ReadAll(rc)
+		f, err := ioutil.ReadAll(rc)
 		if err != nil {
 			return err
 		}
 		_ = rc.Close()
 
-		f, err := dbf.NewReader(bytes.NewReader(b), &cp866Decoder{})
+		t, err := dbf.NewTableFromReader(bytes.NewReader(f))
 		if err != nil {
 			return err
 		}
+		l := t.ReadAll()
 
 		var (
 			name, date    string
@@ -155,28 +157,25 @@ func (c *cmdBel) transformDBFs() error {
 				}
 				return name
 			}
+			items = make([]item, 0, len(l))
 		)
-		items := make([]item, 0, f.RecordCount())
-		for i := uint32(0); i < f.RecordCount(); i++ {
-			r, err := f.Read(uint16(i))
-			if err != nil {
-				return err
-			}
+
+		for i := range l {
 			if i == 0 {
-				name = castToStringSafely(r["APTEKA"])
-				date = castToTimeStringSafely(r["DATE"])
+				name = castToStringSafely(l[i]["APTEKA"])
+				date = castToTimeStringSafely(l[i]["DATE"])
 			}
 
 			items = append(items, item{
 				Code:     "",
-				Drug:     drugPlusMaker(castToStringSafely(r["TOVAR"]), castToStringSafely(r["PROIZV"])),
-				QuantInp: castToFloat64Safely(r["APTIN"]),
-				QuantOut: castToFloat64Safely(r["OUT"]),
-				PriceInp: castToFloat64Safely(r["PRICEIN"]),
-				PriceOut: castToFloat64Safely(r["PRICE"]),
-				PriceRoc: castToFloat64Safely(r["ROC"]),
-				Balance:  castToFloat64Safely(r["KOLSTAT"]),
-				BalanceT: castToFloat64Safely(r["AMOUNT"]),
+				Drug:     drugPlusMaker(castToStringSafely(l[i]["TOVAR"]), castToStringSafely(l[i]["PROIZV"])),
+				QuantInp: castToFloat64Safely(l[i]["APTIN"]),
+				QuantOut: castToFloat64Safely(l[i]["OUT"]),
+				PriceInp: castToFloat64Safely(l[i]["PRICEIN"]),
+				PriceOut: castToFloat64Safely(l[i]["PRICE"]),
+				PriceRoc: castToFloat64Safely(l[i]["ROC"]),
+				Balance:  castToFloat64Safely(l[i]["KOLSTAT"]),
+				BalanceT: castToFloat64Safely(l[i]["AMOUNT"]),
 			})
 		}
 
@@ -261,19 +260,21 @@ func (d *cp866Decoder) Decode(in []byte) ([]byte, error) {
 }
 
 func castToStringSafely(v interface{}) string {
+	var b []byte
 	if s, ok := v.(string); ok {
-		return strings.TrimSpace(s)
+		d := &cp866Decoder{}
+		b, _ = d.Decode([]byte(s))
 	}
 
-	return ""
+	return strings.TrimSpace(string(b))
 }
 
 func castToFloat64Safely(v interface{}) float64 {
-	if f, ok := v.(float64); ok {
-		return f
+	var f float64
+	if s, ok := v.(string); ok {
+		f, _ = strconv.ParseFloat(s, 64)
 	}
-
-	return 0.0
+	return f
 }
 
 func castToTimeStringSafely(v interface{}) string {

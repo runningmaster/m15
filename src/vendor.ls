@@ -11,8 +11,8 @@ github.com/google/subcommands
 github.com/jlaffaye/ftp
 
 # Package for dbf
-# https://godoc.org/github.com/CentaurWarchief/godbf
-github.com/CentaurWarchief/godbf
+# https://godoc.org/github.com/CentaurWarchief/dbf
+github.com/CentaurWarchief/dbf
 
 # Package charmap provides simple character encodings such as IBM Code Page 437 and Windows 1252.
 # https://godoc.org/golang.org/x/text/encoding/charmap
