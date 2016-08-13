@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"strconv"
 	"strings"
@@ -158,24 +159,28 @@ func (c *cmdBel) transformDBFs() error {
 				return name
 			}
 			items = make([]item, 0, len(l))
+			cp866 = &cp866Decoder{new(bytes.Buffer)}
 		)
 
 		for i := range l {
 			if i == 0 {
-				name = castToStringSafely(l[i]["APTEKA"])
-				date = castToTimeStringSafely(l[i]["DATE"])
+				name = cp866.DecodeString(intfToString(l[i]["APTEKA"]))
+				date = intfToTimeAsString(l[i]["DATE"])
 			}
 
 			items = append(items, item{
-				Code:     "",
-				Drug:     drugPlusMaker(castToStringSafely(l[i]["TOVAR"]), castToStringSafely(l[i]["PROIZV"])),
-				QuantInp: castToFloat64Safely(l[i]["APTIN"]),
-				QuantOut: castToFloat64Safely(l[i]["OUT"]),
-				PriceInp: castToFloat64Safely(l[i]["PRICEIN"]),
-				PriceOut: castToFloat64Safely(l[i]["PRICE"]),
-				PriceRoc: castToFloat64Safely(l[i]["ROC"]),
-				Balance:  castToFloat64Safely(l[i]["KOLSTAT"]),
-				BalanceT: castToFloat64Safely(l[i]["AMOUNT"]),
+				Code: "",
+				Drug: drugPlusMaker(
+					cp866.DecodeString(intfToString(l[i]["TOVAR"])),
+					cp866.DecodeString(intfToString(l[i]["PROIZV"])),
+				),
+				QuantInp: intfToFloat64(l[i]["APTIN"]),
+				QuantOut: intfToFloat64(l[i]["OUT"]),
+				PriceInp: intfToFloat64(l[i]["PRICEIN"]),
+				PriceOut: intfToFloat64(l[i]["PRICE"]),
+				PriceRoc: intfToFloat64(l[i]["ROC"]),
+				Balance:  intfToFloat64(l[i]["KOLSTAT"]),
+				BalanceT: intfToFloat64(l[i]["AMOUNT"]),
 			})
 		}
 
@@ -247,37 +252,40 @@ func (c *cmdBel) uploadGzipJSONs() error {
 
 // Util funcs
 
-type cp866Decoder struct{}
-
-func (d *cp866Decoder) Decode(in []byte) ([]byte, error) {
-	if utf8.Valid(in) {
-		return in, nil
-	}
-
-	r := transform.NewReader(bytes.NewReader(in), charmap.CodePage866.NewDecoder())
-
-	return ioutil.ReadAll(r)
+type cp866Decoder struct {
+	buf *bytes.Buffer
 }
 
-func castToStringSafely(v interface{}) string {
-	var b []byte
+func (d *cp866Decoder) DecodeString(s string) string {
+	if utf8.Valid([]byte(s)) {
+		return s
+	}
+
+	r := transform.NewReader(strings.NewReader(s), charmap.CodePage866.NewDecoder())
+
+	d.buf.Reset()
+	_, _ = io.Copy(d.buf, r)
+	return d.buf.String()
+}
+
+func intfToString(v interface{}) string {
 	if s, ok := v.(string); ok {
-		d := &cp866Decoder{}
-		b, _ = d.Decode([]byte(s))
+		return string(s)
 	}
 
-	return strings.TrimSpace(string(b))
+	return ""
 }
 
-func castToFloat64Safely(v interface{}) float64 {
+func intfToFloat64(v interface{}) float64 {
 	var f float64
 	if s, ok := v.(string); ok {
 		f, _ = strconv.ParseFloat(s, 64)
 	}
+
 	return f
 }
 
-func castToTimeStringSafely(v interface{}) string {
+func intfToTimeAsString(v interface{}) string {
 	if t, ok := v.(time.Time); ok {
 		return t.Format("02.01.2006")
 	}
