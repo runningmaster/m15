@@ -263,8 +263,12 @@ func (d *cp866Decoder) DecodeString(s string) string {
 
 	r := transform.NewReader(strings.NewReader(s), charmap.CodePage866.NewDecoder())
 
+	if d.buf == nil {
+		d.buf = new(bytes.Buffer)
+	}
 	d.buf.Reset()
 	_, _ = io.Copy(d.buf, r)
+
 	return d.buf.String()
 }
 
