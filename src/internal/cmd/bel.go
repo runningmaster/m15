@@ -76,12 +76,7 @@ func newCmdBel() *cmdBel {
 }
 
 func (c *cmdBel) exec() error {
-	err := c.failFast()
-	if err != nil {
-		return err
-	}
-
-	err = c.downloadZIPs()
+	err := c.downloadZIPs()
 	if err != nil {
 		return err
 	}
@@ -151,15 +146,9 @@ func (c *cmdBel) transformDBFs() error {
 		l := t.ReadAll()
 
 		var (
-			name, date    string
-			drugPlusMaker = func(name, maker string) string {
-				if !strings.Contains(strings.ToLower(name), strings.ToLower(maker)) {
-					return fmt.Sprintf("%s %s", name, maker)
-				}
-				return name
-			}
-			items = make([]item, 0, len(l))
-			cp866 = &cp866Decoder{new(bytes.Buffer)}
+			name, date string
+			items      = make([]item, 0, len(l))
+			cp866      = &cp866Decoder{new(bytes.Buffer)}
 		)
 
 		for i := range l {
@@ -283,6 +272,7 @@ func intfToString(v interface{}) string {
 func intfToFloat64(v interface{}) float64 {
 	var f float64
 	if s, ok := v.(string); ok {
+		s = strings.Replace(s, ",", ".", -1)
 		f, _ = strconv.ParseFloat(s, 64)
 	}
 
@@ -295,4 +285,11 @@ func intfToTimeAsString(v interface{}) string {
 	}
 
 	return ""
+}
+
+func drugPlusMaker(name, maker string) string {
+	if !strings.Contains(strings.ToLower(name), strings.ToLower(maker)) {
+		return fmt.Sprintf("%s %s", name, maker)
+	}
+	return name
 }

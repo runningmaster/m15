@@ -22,11 +22,6 @@ func newCmdFoz() *cmdFoz {
 }
 
 func (c *cmdFoz) exec() error {
-	err := c.failFast()
-	if err != nil {
-		return err
-	}
-
 	return c.downloadAndPushGzips()
 }
 

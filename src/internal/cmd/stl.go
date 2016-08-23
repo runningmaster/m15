@@ -42,12 +42,7 @@ func newCmdStl() *cmdStl {
 }
 
 func (c *cmdStl) exec() error {
-	err := c.failFast()
-	if err != nil {
-		return err
-	}
-
-	err = c.downloadCSVs()
+	err := c.downloadCSVs()
 	if err != nil {
 		return err
 	}

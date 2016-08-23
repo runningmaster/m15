@@ -31,6 +31,7 @@ func Run() int {
 	subcommands.Register(newCmdBel(), "")
 	subcommands.Register(newCmdA24(), "")
 	subcommands.Register(newCmdStl(), "")
+	subcommands.Register(newCmdA55(), "")
 	subcommands.Register(newCmdTst(), "")
 
 	return int(subcommands.Execute(context.Background()))
@@ -122,7 +123,12 @@ func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interfac
 	t := time.Now()
 	log.Println(c.name, "executing...")
 
-	var err error
+	err := c.failFast()
+	if err != nil {
+		log.Println(c.name, "err:", err)
+		return subcommands.ExitFailure
+	}
+
 	if i, ok := c.cmd.(execer); ok {
 		err = i.exec()
 	} else {
@@ -133,7 +139,7 @@ func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interfac
 		log.Println(c.name, "err:", err)
 		err = c.sendError(err)
 		if err != nil {
-			log.Println(err)
+			log.Println(c.name, "err:", err)
 		}
 		return subcommands.ExitFailure
 	}
@@ -236,7 +242,7 @@ func (c *cmdBase) pushGzip(r io.Reader, s string, v apiV) error {
 
 	res, err := c.httpCli.Do(req)
 	if err != nil {
-		return fmt.Errorf("%v (%s)", err, time.Since(t).String())
+		return fmt.Errorf("%v (%s): %s", err, time.Since(t).String(), s)
 	}
 
 	err = res.Body.Close()

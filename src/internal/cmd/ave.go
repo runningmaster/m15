@@ -83,12 +83,7 @@ func newCmdAve() *cmdAve {
 }
 
 func (c *cmdAve) exec() error {
-	err := c.failFast()
-	if err != nil {
-		return err
-	}
-
-	err = c.downloadZIPs()
+	err := c.downloadZIPs()
 	if err != nil {
 		return err
 	}

@@ -85,12 +85,7 @@ func (c *cmdA24) setFlags(f *flag.FlagSet) {
 }
 
 func (c *cmdA24) exec() error {
-	err := c.failFast()
-	if err != nil {
-		return err
-	}
-
-	err = c.downloadXML()
+	err := c.downloadXML()
 	if err != nil {
 		return err
 	}
