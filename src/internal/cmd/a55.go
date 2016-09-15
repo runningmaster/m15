@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"internal/mailutil"
 	"io/ioutil"
@@ -14,12 +16,18 @@ import (
 
 type cmdA55 struct {
 	cmdBase
+
+	flagMeta string
+
 	files []*bytes.Reader
 	jsons [][]byte
+	metas map[string]string
 }
 
 func newCmdA55() *cmdA55 {
-	cmd := &cmdA55{}
+	cmd := &cmdA55{
+		metas: make(map[string]string, 4),
+	}
 	cmd.mustInitBase(cmd, "a55", "download and send to skynet dbf files from site")
 	return cmd
 }
@@ -36,6 +44,10 @@ func (c *cmdA55) exec() error {
 	}
 
 	return c.uploadGzipJSONs()
+}
+
+func (c *cmdA55) setFlags(f *flag.FlagSet) {
+	f.StringVar(&c.flagMeta, "meta", "", "source scheme://user:pass@host:port[,...]")
 }
 
 func (c *cmdA55) downloadDBF() error {
@@ -74,12 +86,17 @@ func (c *cmdA55) transformDBF() error {
 		}
 		l := t.ReadAll()
 
+		err = json.Unmarshal([]byte(c.flagMeta), &c.metas)
+		if err != nil {
+			return err
+		}
+
 		p := price1{
 			Meta: shop1{
-				Name:   "",
-				Head:   "",
-				Addr:   "",
-				EGRPOU: "",
+				Name:   c.metas["name"],
+				Head:   c.metas["head"],
+				Addr:   c.metas["addr"],
+				EGRPOU: c.metas["code"],
 			},
 			Data: make([]prop1, 0, len(l)),
 		}
@@ -111,16 +128,29 @@ func (c *cmdA55) transformDBF() error {
 }
 
 func (c *cmdA55) uploadGzipJSONs() error {
-	var err error
+	b := new(bytes.Buffer)
+	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
+	if err != nil {
+		return err
+	}
+
 	for i := range c.jsons {
-		//err = c.pushGzipV1(bytes.NewReader(c.jsons[i]), fmt.Sprintf("%s (%d)", c.name, i))
-		//if err != nil {
-		//	return err
-		//}
-		err = ioutil.WriteFile(fmt.Sprintf("%d.json", i), c.jsons[i], 0666)
+		w.Reset(b)
+		w.Write(c.jsons[i])
+
+		err = w.Close()
 		if err != nil {
 			return err
 		}
+
+		err = c.pushGzipV1(b, fmt.Sprintf("%s (%d)", c.name, i))
+		if err != nil {
+			return err
+		}
+		//err = ioutil.WriteFile(fmt.Sprintf("%d.gz", i), b.Bytes(), 0666)
+		//if err != nil {
+		//	return err
+		//}
 	}
 	return nil
 }

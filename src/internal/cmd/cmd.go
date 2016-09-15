@@ -245,6 +245,7 @@ func (c *cmdBase) pushGzip(r io.Reader, s string, v apiV) error {
 		return fmt.Errorf("%v (%s): %s", err, time.Since(t).String(), s)
 	}
 
+	//bts, err := ioutil.ReadAll(res.Body)
 	err = res.Body.Close()
 	if err != nil {
 		return err
