@@ -51,14 +51,12 @@ func (c *cmdA55) setFlags(f *flag.FlagSet) {
 }
 
 func (c *cmdA55) downloadDBF() error {
-	//vCh := mailutil.NewMailChan(c.flagSRC, true)
-
 	vCh := mailutil.NewFileChan(
 		c.flagSRC,
 		func(name string) bool {
 			return strings.HasPrefix(strings.ToLower(filepath.Ext(name)), ".dbf")
 		},
-		false, // FIXME
+		true, // FIXME
 	)
 
 	for v := range vCh {
@@ -129,21 +127,20 @@ func (c *cmdA55) transformDBF() error {
 
 func (c *cmdA55) uploadGzipJSONs() error {
 	b := new(bytes.Buffer)
-	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
-	if err != nil {
-		return err
-	}
+	w := gzip.NewWriter(b)
 
+	var n int
+	var err error
 	for i := range c.jsons {
 		w.Reset(b)
 		w.Write(c.jsons[i])
-
 		err = w.Close()
 		if err != nil {
 			return err
 		}
 
-		err = c.pushGzipV1(b, fmt.Sprintf("%s (%d)", c.name, i))
+		n++
+		err = c.pushGzipV1(b, fmt.Sprintf("%s (%d)", c.name, n))
 		if err != nil {
 			return err
 		}
@@ -152,5 +149,6 @@ func (c *cmdA55) uploadGzipJSONs() error {
 		//	return err
 		//}
 	}
+
 	return nil
 }

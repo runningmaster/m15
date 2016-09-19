@@ -218,9 +218,9 @@ func (c *cmdBase) pushGzip(r io.Reader, s string, v apiV) error {
 	var url string
 	switch v {
 	case v1:
-		url = c.makeURL("/data/add")
-	case v2:
 		url = c.makeURL("/data/add?key=") + c.flagKey
+	case v2:
+		url = c.makeURL("/data/add")
 	}
 
 	req, err := http.NewRequest("POST", url, r)
