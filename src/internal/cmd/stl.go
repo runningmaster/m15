@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -9,8 +10,6 @@ import (
 	"internal/csvutil"
 	"internal/ftputil"
 	"internal/txtutil"
-
-	"github.com/klauspost/compress/gzip"
 )
 
 const (
@@ -167,13 +166,10 @@ func (c *cmdStl) parseRecordOst(r []string) {
 
 func (c *cmdStl) uploadGzipJSONs() error {
 	b := new(bytes.Buffer)
-
-	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
-	if err != nil {
-		return err
-	}
+	w := gzip.NewWriter(b)
 
 	var n int
+	var err error
 	for k, v := range c.mapProp {
 		p := price{
 			Meta: c.mapShop[k],

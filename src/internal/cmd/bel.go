@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,7 +16,6 @@ import (
 	"internal/ziputil"
 
 	"github.com/CentaurWarchief/dbf"
-	"github.com/klauspost/compress/gzip"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
 )
@@ -196,13 +196,10 @@ func (c *cmdBel) transformDBFs() error {
 
 func (c *cmdBel) uploadGzipJSONs() error {
 	b := new(bytes.Buffer)
-
-	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
-	if err != nil {
-		return err
-	}
+	w := gzip.NewWriter(b)
 
 	var n int
+	var err error
 	for _, v := range c.mapJSON {
 		b.Reset()
 		w.Reset(b)

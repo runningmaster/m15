@@ -260,17 +260,14 @@ func (c *cmdA24) parseRecordFile2(s string, r []string) {
 
 func (c *cmdA24) uploadGzipJSONs() error {
 	b := new(bytes.Buffer)
-
-	w, err := gzip.NewWriterLevel(b, gzip.DefaultCompression)
-	if err != nil {
-		return err
-	}
+	w := gzip.NewWriter(b)
 
 	if len(c.mapProp) == 0 {
 		return fmt.Errorf("%s: offers not found", c.name)
 	}
 
 	var n int
+	var err error
 	for k, v := range c.mapProp {
 		p := price1{
 			Meta: c.mapShop[k],
