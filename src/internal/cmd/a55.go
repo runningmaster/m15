@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"internal/mailutil"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
+
+	"internal/mailutil"
 
 	"github.com/CentaurWarchief/dbf"
 )
@@ -63,6 +64,9 @@ func (c *cmdA55) downloadDBF() error {
 		if v.Error != nil {
 			return v.Error
 		}
+		if v.File == nil {
+			return fmt.Errorf("file is %v", v.File)
+		}
 
 		f, err := ioutil.ReadAll(v.File)
 		if err != nil {
@@ -86,7 +90,7 @@ func (c *cmdA55) transformDBF() error {
 
 		err = json.Unmarshal([]byte(c.flagMeta), &c.metas)
 		if err != nil {
-			return err
+			return fmt.Errorf("json.Unmarshal: %s: %v", c.flagMeta, err)
 		}
 
 		p := price1{
@@ -117,7 +121,7 @@ func (c *cmdA55) transformDBF() error {
 
 		b, err := json.Marshal(p)
 		if err != nil {
-			return err
+			return fmt.Errorf("json.Marshal: %v", err)
 		}
 
 		c.jsons = append(c.jsons, b)
