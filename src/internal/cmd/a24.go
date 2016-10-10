@@ -133,7 +133,7 @@ func (c *cmdA24) downloadCSVs() error {
 		return err
 	}
 
-	vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(r), ';', true, 1)
+	vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(r), ',', true, 1)
 	for v := range vCh {
 		if v.Error != nil {
 			continue
