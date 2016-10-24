@@ -2,17 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// TODO: replace all <-sc.doneServing with reads from the stream's cw
-// instead, and make sure that on close we close all open
-// streams. then remove doneServing?
-
-// TODO: re-audit GOAWAY support. Consider each incoming frame type and
-// whether it should be ignored during graceful shutdown.
-
-// TODO: disconnect idle clients. GFE seems to do 4 minutes. make
-// configurable?  or maximum number of idle clients and remove the
-// oldest?
-
 // TODO: turn off the serve goroutine when idle, so
 // an idle conn only has the readFrames goroutine active. (which could
 // also be optimized probably to pin less memory in crypto/tls). This
@@ -114,6 +103,11 @@ type Server struct {
 	// PermitProhibitedCipherSuites, if true, permits the use of
 	// cipher suites prohibited by the HTTP/2 spec.
 	PermitProhibitedCipherSuites bool
+
+	// IdleTimeout specifies how long until idle clients should be
+	// closed with a GOAWAY frame. PING frames are not considered
+	// activity for the purposes of IdleTimeout.
+	IdleTimeout time.Duration
 }
 
 func (s *Server) maxReadFrameSize() uint32 {
@@ -390,7 +384,8 @@ type serverConn struct {
 	goAwayCode            ErrCode
 	shutdownTimerCh       <-chan time.Time // nil until used
 	shutdownTimer         *time.Timer      // nil until used
-	freeRequestBodyBuf    []byte           // if non-nil, a free initialWindowSize buffer for getRequestBodyBuf
+	idleTimer             *time.Timer      // nil if unused
+	idleTimerCh           <-chan time.Time // nil if unused
 
 	// Owned by the writeFrameAsync goroutine:
 	headerWriteBuf bytes.Buffer
@@ -434,11 +429,11 @@ type stream struct {
 	numTrailerValues int64
 	weight           uint8
 	state            streamState
-	sentReset        bool // only true once detached from streams map
-	gotReset         bool // only true once detacted from streams map
-	gotTrailerHeader bool // HEADER frame for trailers was seen
-	wroteHeaders     bool // whether we wrote headers (not status 100)
-	reqBuf           []byte
+	sentReset        bool   // only true once detached from streams map
+	gotReset         bool   // only true once detacted from streams map
+	gotTrailerHeader bool   // HEADER frame for trailers was seen
+	wroteHeaders     bool   // whether we wrote headers (not status 100)
+	reqBuf           []byte // if non-nil, body pipe buffer to return later at EOF
 
 	trailer    http.Header // accumulated trailers
 	reqTrailer http.Header // handler's Request.Trailer
@@ -682,6 +677,12 @@ func (sc *serverConn) serve() {
 	sc.setConnState(http.StateActive)
 	sc.setConnState(http.StateIdle)
 
+	if sc.srv.IdleTimeout != 0 {
+		sc.idleTimer = time.NewTimer(sc.srv.IdleTimeout)
+		defer sc.idleTimer.Stop()
+		sc.idleTimerCh = sc.idleTimer.C
+	}
+
 	go sc.readFrames() // closed by defer sc.conn.Close above
 
 	settingsTimer := time.NewTimer(firstSettingsTimeout)
@@ -710,6 +711,9 @@ func (sc *serverConn) serve() {
 		case <-sc.shutdownTimerCh:
 			sc.vlogf("GOAWAY close timer fired; closing conn from %v", sc.conn.RemoteAddr())
 			return
+		case <-sc.idleTimerCh:
+			sc.vlogf("connection is idle")
+			sc.goAway(ErrCodeNo)
 		case fn := <-sc.testHookCh:
 			fn(loopNum)
 		}
@@ -916,11 +920,11 @@ func (sc *serverConn) wroteFrame(res frameWriteResult) {
 			// Here we would go to stateHalfClosedLocal in
 			// theory, but since our handler is done and
 			// the net/http package provides no mechanism
-			// for finishing writing to a ResponseWriter
-			// while still reading data (see possible TODO
-			// at top of this file), we go into closed
-			// state here anyway, after telling the peer
-			// we're hanging up on them.
+			// for closing a ResponseWriter while still
+			// reading data (see possible TODO at top of
+			// this file), we go into closed state here
+			// anyway, after telling the peer we're
+			// hanging up on them.
 			st.state = stateHalfClosedLocal // won't last long, but necessary for closeStream via resetStream
 			errCancel := streamError(st.id, ErrCodeCancel)
 			sc.resetStream(errCancel)
@@ -1115,15 +1119,28 @@ func (sc *serverConn) processPing(f *PingFrame) error {
 		// PROTOCOL_ERROR."
 		return ConnectionError(ErrCodeProtocol)
 	}
+	if sc.inGoAway {
+		return nil
+	}
 	sc.writeFrame(frameWriteMsg{write: writePingAck{f}})
 	return nil
 }
 
 func (sc *serverConn) processWindowUpdate(f *WindowUpdateFrame) error {
 	sc.serveG.check()
+	if sc.inGoAway {
+		return nil
+	}
 	switch {
 	case f.StreamID != 0: // stream-level flow control
-		st := sc.streams[f.StreamID]
+		state, st := sc.state(f.StreamID)
+		if state == stateIdle {
+			// Section 5.1: "Receiving any frame other than HEADERS
+			// or PRIORITY on a stream in this state MUST be
+			// treated as a connection error (Section 5.4.1) of
+			// type PROTOCOL_ERROR."
+			return ConnectionError(ErrCodeProtocol)
+		}
 		if st == nil {
 			// "WINDOW_UPDATE can be sent by a peer that has sent a
 			// frame bearing the END_STREAM flag. This means that a
@@ -1146,6 +1163,9 @@ func (sc *serverConn) processWindowUpdate(f *WindowUpdateFrame) error {
 
 func (sc *serverConn) processResetStream(f *RSTStreamFrame) error {
 	sc.serveG.check()
+	if sc.inGoAway {
+		return nil
+	}
 
 	state, st := sc.state(f.StreamID)
 	if state == stateIdle {
@@ -1175,6 +1195,9 @@ func (sc *serverConn) closeStream(st *stream, err error) {
 		sc.setConnState(http.StateIdle)
 	}
 	delete(sc.streams, st.id)
+	if len(sc.streams) == 0 && sc.srv.IdleTimeout != 0 {
+		sc.idleTimer.Reset(sc.srv.IdleTimeout)
+	}
 	if p := st.body; p != nil {
 		// Return any buffered unread bytes worth of conn-level flow control.
 		// See golang.org/issue/16481
@@ -1184,18 +1207,6 @@ func (sc *serverConn) closeStream(st *stream, err error) {
 	}
 	st.cw.Close() // signals Handler's CloseNotifier, unblocks writes, etc
 	sc.writeSched.forgetStream(st.id)
-	if st.reqBuf != nil {
-		// Stash this request body buffer (64k) away for reuse
-		// by a future POST/PUT/etc.
-		//
-		// TODO(bradfitz): share on the server? sync.Pool?
-		// Server requires locks and might hurt contention.
-		// sync.Pool might work, or might be worse, depending
-		// on goroutine CPU migrations. (get and put on
-		// separate CPUs).  Maybe a mix of strategies. But
-		// this is an easy win for now.
-		sc.freeRequestBodyBuf = st.reqBuf
-	}
 }
 
 func (sc *serverConn) processSettings(f *SettingsFrame) error {
@@ -1208,6 +1219,9 @@ func (sc *serverConn) processSettings(f *SettingsFrame) error {
 			// hang up on them anyway.
 			return ConnectionError(ErrCodeProtocol)
 		}
+		return nil
+	}
+	if sc.inGoAway {
 		return nil
 	}
 	if err := f.ForeachSetting(sc.processSetting); err != nil {
@@ -1281,14 +1295,24 @@ func (sc *serverConn) processSettingInitialWindowSize(val uint32) error {
 
 func (sc *serverConn) processData(f *DataFrame) error {
 	sc.serveG.check()
+	if sc.inGoAway {
+		return nil
+	}
 	data := f.Data()
 
 	// "If a DATA frame is received whose stream is not in "open"
 	// or "half closed (local)" state, the recipient MUST respond
 	// with a stream error (Section 5.4.2) of type STREAM_CLOSED."
 	id := f.Header().StreamID
-	st, ok := sc.streams[id]
-	if !ok || st.state != stateOpen || st.gotTrailerHeader {
+	state, st := sc.state(id)
+	if id == 0 || state == stateIdle {
+		// Section 5.1: "Receiving any frame other than HEADERS
+		// or PRIORITY on a stream in this state MUST be
+		// treated as a connection error (Section 5.4.1) of
+		// type PROTOCOL_ERROR."
+		return ConnectionError(ErrCodeProtocol)
+	}
+	if st == nil || state != stateOpen || st.gotTrailerHeader {
 		// This includes sending a RST_STREAM if the stream is
 		// in stateHalfClosedLocal (which currently means that
 		// the http.Handler returned, so it's done reading &
@@ -1411,6 +1435,10 @@ func (sc *serverConn) processHeaders(f *MetaHeadersFrame) error {
 	}
 	sc.maxStreamID = id
 
+	if sc.idleTimer != nil {
+		sc.idleTimer.Stop()
+	}
+
 	ctx, cancelCtx := contextWithCancel(sc.baseCtx)
 	st = &stream{
 		sc:        sc,
@@ -1475,6 +1503,19 @@ func (sc *serverConn) processHeaders(f *MetaHeadersFrame) error {
 		handler = new400Handler(err)
 	}
 
+	// The net/http package sets the read deadline from the
+	// http.Server.ReadTimeout during the TLS handshake, but then
+	// passes the connection off to us with the deadline already
+	// set. Disarm it here after the request headers are read, similar
+	// to how the http1 server works.
+	// Unlike http1, though, we never re-arm it yet, though.
+	// TODO(bradfitz): figure out golang.org/issue/14204
+	// (IdleTimeout) and how this relates. Maybe the default
+	// IdleTimeout is ReadTimeout.
+	if sc.hs.ReadTimeout != 0 {
+		sc.conn.SetReadDeadline(time.Time{})
+	}
+
 	go sc.runHandler(rw, req, handler)
 	return nil
 }
@@ -1510,6 +1551,9 @@ func (st *stream) processTrailerHeaders(f *MetaHeadersFrame) error {
 }
 
 func (sc *serverConn) processPriority(f *PriorityFrame) error {
+	if sc.inGoAway {
+		return nil
+	}
 	adjustStreamPriority(sc.streams, f.StreamID, f.PriorityParam)
 	return nil
 }
@@ -1659,13 +1703,9 @@ func (sc *serverConn) newWriterAndRequest(st *stream, f *MetaHeadersFrame) (*res
 	}
 	req = requestWithContext(req, st.ctx)
 	if bodyOpen {
-		// Disabled, per golang.org/issue/14960:
-		// st.reqBuf = sc.getRequestBodyBuf()
-		// TODO: remove this 64k of garbage per request (again, but without a data race):
-		buf := make([]byte, initialWindowSize)
-
+		st.reqBuf = getRequestBodyBuf()
 		body.pipe = &pipe{
-			b: &fixedBuffer{buf: buf},
+			b: &fixedBuffer{buf: st.reqBuf},
 		}
 
 		if vv, ok := header["Content-Length"]; ok {
@@ -1689,13 +1729,22 @@ func (sc *serverConn) newWriterAndRequest(st *stream, f *MetaHeadersFrame) (*res
 	return rw, req, nil
 }
 
-func (sc *serverConn) getRequestBodyBuf() []byte {
-	sc.serveG.check()
-	if buf := sc.freeRequestBodyBuf; buf != nil {
-		sc.freeRequestBodyBuf = nil
-		return buf
+var reqBodyCache = make(chan []byte, 8)
+
+func getRequestBodyBuf() []byte {
+	select {
+	case b := <-reqBodyCache:
+		return b
+	default:
+		return make([]byte, initialWindowSize)
 	}
-	return make([]byte, initialWindowSize)
+}
+
+func putRequestBodyBuf(b []byte) {
+	select {
+	case reqBodyCache <- b:
+	default:
+	}
 }
 
 // Run on its own goroutine.
@@ -1783,11 +1832,19 @@ type bodyReadMsg struct {
 // called from handler goroutines.
 // Notes that the handler for the given stream ID read n bytes of its body
 // and schedules flow control tokens to be sent.
-func (sc *serverConn) noteBodyReadFromHandler(st *stream, n int) {
+func (sc *serverConn) noteBodyReadFromHandler(st *stream, n int, err error) {
 	sc.serveG.checkNotOn() // NOT on
-	select {
-	case sc.bodyReadCh <- bodyReadMsg{st, n}:
-	case <-sc.doneServing:
+	if n > 0 {
+		select {
+		case sc.bodyReadCh <- bodyReadMsg{st, n}:
+		case <-sc.doneServing:
+		}
+	}
+	if err == io.EOF {
+		if buf := st.reqBuf; buf != nil {
+			st.reqBuf = nil // shouldn't matter; field unused by other
+			putRequestBodyBuf(buf)
+		}
 	}
 }
 
@@ -1845,16 +1902,19 @@ func (sc *serverConn) sendWindowUpdate32(st *stream, n int32) {
 	}
 }
 
+// requestBody is the Handler's Request.Body type.
+// Read and Close may be called concurrently.
 type requestBody struct {
 	stream        *stream
 	conn          *serverConn
-	closed        bool
+	closed        bool  // for use by Close only
+	sawEOF        bool  // for use by Read only
 	pipe          *pipe // non-nil if we have a HTTP entity message body
 	needsContinue bool  // need to send a 100-continue
 }
 
 func (b *requestBody) Close() error {
-	if b.pipe != nil {
+	if b.pipe != nil && !b.closed {
 		b.pipe.BreakWithError(errClosedBody)
 	}
 	b.closed = true
@@ -1866,13 +1926,17 @@ func (b *requestBody) Read(p []byte) (n int, err error) {
 		b.needsContinue = false
 		b.conn.write100ContinueHeaders(b.stream)
 	}
-	if b.pipe == nil {
+	if b.pipe == nil || b.sawEOF {
 		return 0, io.EOF
 	}
 	n, err = b.pipe.Read(p)
-	if n > 0 {
-		b.conn.noteBodyReadFromHandler(b.stream, n)
+	if err == io.EOF {
+		b.sawEOF = true
 	}
+	if b.conn == nil && inTests {
+		return
+	}
+	b.conn.noteBodyReadFromHandler(b.stream, n, err)
 	return
 }
 
