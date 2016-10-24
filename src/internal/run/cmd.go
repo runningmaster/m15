@@ -1,15 +1,13 @@
 package run
 
 import (
-	"bytes"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"time"
 
+	"internal/net/httpcli"
 	"internal/net/mailcli"
 	"internal/version"
 
@@ -45,10 +43,6 @@ type cmdBase struct {
 	flagMFm string
 	flagMTo string
 
-	httpCli *http.Client
-	httpCtx context.Context
-	httpUsr string
-
 	timeout time.Duration
 }
 
@@ -61,15 +55,6 @@ func (c *cmdBase) mustInitBase(cmd interface{}, name, desc string) {
 	c.name = name
 	c.desc = desc
 
-	c.httpCli = &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, // workaround
-			},
-		},
-	}
-	c.httpCtx = context.Background()
-	c.httpUsr = fmt.Sprintf("%s %s", version.AppName(), version.WithBuildInfo())
 	c.timeout = 60 * time.Second
 }
 
@@ -140,109 +125,45 @@ func (c *cmdBase) makeURL(path string) string {
 }
 
 func (c *cmdBase) failFast() error {
-	ctx, cancel := context.WithTimeout(c.httpCtx, c.timeout)
-	defer cancel()
-
-	url := c.makeURL("/ping")
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return err
-	}
-	req = req.WithContext(ctx)
-
-	res, err := c.httpCli.Do(req)
-	if err != nil {
-		return err
-	}
-
-	err = res.Body.Close()
-	if err != nil {
-		return err
-	}
-
-	if res.StatusCode >= 300 {
-		return fmt.Errorf("cmd: fail fast with code %d", res.StatusCode)
-	}
-
-	return nil
+	_, _, _, err := httpcli.Do2xxWithTimeout("GET", c.makeURL("/ping"), c.timeout, nil)
+	return err
 }
 
 func (c *cmdBase) pullData(url string) (io.Reader, error) {
-	t := time.Now()
+	defer func(t time.Time) {
+		log.Println("pull", url, time.Since(t).String())
+	}(time.Now())
 
-	ctx, cancel := context.WithTimeout(c.httpCtx, c.timeout)
-	defer cancel()
+	v, _, _, err := httpcli.Do2xxWithTimeout("GET", url, c.timeout, nil)
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-
-	res, err := c.httpCli.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = res.Body.Close() }()
-
-	if res.StatusCode >= 300 {
-		return nil, fmt.Errorf("cmd: pull failed with code %d", res.StatusCode)
-	}
-
-	buf := new(bytes.Buffer)
-	_, err = buf.ReadFrom(res.Body)
-
-	log.Println("pull", url, time.Since(t).String())
-	return buf, err
+	return v, err
 }
 
 func (c *cmdBase) pushGzip(r io.Reader, s string, v apiV) error {
-	t := time.Now()
-
-	ctx, cancel := context.WithTimeout(c.httpCtx, c.timeout)
-	defer cancel()
+	defer func(t time.Time) {
+		log.Println("push", s, time.Since(t).String())
+	}(time.Now())
 
 	var url string
+	var hdr []string
+	hdr = append(hdr, "Content-Encoding: application/x-gzip")
+	hdr = append(hdr, "User-Agent: "+fmt.Sprintf("%s %s", version.AppName(), version.WithBuildInfo()))
 	switch v {
 	case v1:
 		url = c.makeURL("/data/add?key=") + c.flagKey
+		hdr = append(hdr, "Content-Type: application/json; charset=utf-8; hashtag="+c.flagTag)
 	case v2:
 		url = c.makeURL("/data/add")
+		hdr = append(hdr, "Content-Type: application/json; charset=utf-8")
+		hdr = append(hdr, "X-Morion-Skynet-Key: "+c.flagKey)
+		hdr = append(hdr, "X-Morion-Skynet-Tag: "+c.flagTag)
 	}
 
-	req, err := http.NewRequest("POST", url, r)
+	_, _, _, err := httpcli.Do2xxWithTimeout("POST", url, c.timeout, r)
 	if err != nil {
-		return err
-	}
-	req = req.WithContext(ctx)
-
-	req.Header.Set("Content-Encoding", "application/x-gzip")
-	req.Header.Set("User-Agent", c.httpUsr)
-	switch v {
-	case v1:
-		req.Header.Set("Content-Type", "application/json; charset=utf-8; hashtag="+c.flagTag)
-	case v2:
-		req.Header.Set("Content-Type", "application/json; charset=utf-8")
-		req.Header.Set("X-Morion-Skynet-Key", c.flagKey)
-		req.Header.Set("X-Morion-Skynet-Tag", c.flagTag)
+		return fmt.Errorf("%v: %s", err, s)
 	}
 
-	res, err := c.httpCli.Do(req)
-	if err != nil {
-		return fmt.Errorf("%v (%s): %s", err, time.Since(t).String(), s)
-	}
-
-	//bts, err := ioutil.ReadAll(res.Body)
-	err = res.Body.Close()
-	if err != nil {
-		return err
-	}
-
-	if res.StatusCode >= 300 {
-		return fmt.Errorf("cmd: push failed with code %d", res.StatusCode)
-	}
-
-	log.Println(s, time.Since(t).String())
 	return nil
 }
 

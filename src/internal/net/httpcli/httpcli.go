@@ -26,7 +26,7 @@ func init() {
 	}
 }
 
-func DoWith2xx(m, url string, t time.Duration, data io.Reader, h ...string) (io.Reader, http.Header, int, error) {
+func Do2xxWithTimeout(m, url string, t time.Duration, data io.Reader, h ...string) (io.Reader, http.Header, int, error) {
 	req, err := http.NewRequest(m, url, data)
 	if err != nil {
 		return nil, nil, 0, err
