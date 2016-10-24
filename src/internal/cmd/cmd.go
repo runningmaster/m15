@@ -125,8 +125,7 @@ func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interfac
 
 	err := c.failFast()
 	if err != nil {
-		log.Println(c.name, "err:", err)
-		return subcommands.ExitFailure
+		goto fail
 	}
 
 	if i, ok := c.cmd.(execer); ok {
@@ -134,18 +133,19 @@ func (c *cmdBase) Execute(ctx context.Context, f *flag.FlagSet, args ...interfac
 	} else {
 		err = fmt.Errorf("no exec() in interface")
 	}
-
 	if err != nil {
-		log.Println(c.name, "err:", err)
-		err = c.sendError(err)
-		if err != nil {
-			log.Println(c.name, "err:", err)
-		}
-		return subcommands.ExitFailure
+		goto fail
 	}
 
 	log.Println(c.name, "done", time.Since(t).String())
 	return subcommands.ExitSuccess
+fail:
+	log.Println(c.name, "err:", err)
+	err = c.sendError(err)
+	if err != nil {
+		log.Println(c.name, "err:", err)
+	}
+	return subcommands.ExitFailure
 }
 
 func (c *cmdBase) makeURL(path string) string {
