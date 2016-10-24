@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"internal/cmd"
+	"internal/cli"
 )
 
 func main() {
@@ -14,5 +14,5 @@ func main() {
 	log.SetFlags(0)
 	log.SetOutput(os.Stderr)
 
-	os.Exit(cmd.Run())
+	os.Exit(cli.Run())
 }

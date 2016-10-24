@@ -1,4 +1,4 @@
-package ftputil
+package ftpcli
 
 import (
 	"bytes"

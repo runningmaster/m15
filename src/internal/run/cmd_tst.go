@@ -1,4 +1,4 @@
-package cmd
+package run
 
 import (
 	"flag"
@@ -9,7 +9,7 @@ type cmdTst struct {
 	cmdBase
 }
 
-func newCmdTst() *cmdTst {
+func NewCmdTst() *cmdTst {
 	cmd := &cmdTst{}
 	cmd.mustInitBase(cmd, "tst", "test command")
 	return cmd

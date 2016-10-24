@@ -1,4 +1,4 @@
-package cmd
+package run
 
 import (
 	"bytes"
@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"internal/csvutil"
-	"internal/txtutil"
+	"internal/encoding/csvutil"
+	"internal/encoding/txtutil"
 )
 
 // Data structs
@@ -68,7 +68,7 @@ type cmdA24 struct {
 	mapProp map[string][]prop1
 }
 
-func newCmdA24() *cmdA24 {
+func NewCmdA24() *cmdA24 {
 	cmd := &cmdA24{
 		mapXML:  make(map[string]offer, 20000),
 		mapShop: make(map[string]shop1, 30),

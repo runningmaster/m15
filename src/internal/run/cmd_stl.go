@@ -1,4 +1,4 @@
-package cmd
+package run
 
 import (
 	"bytes"
@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"internal/csvutil"
-	"internal/ftputil"
-	"internal/txtutil"
+	"internal/encoding/csvutil"
+	"internal/encoding/txtutil"
+	"internal/net/ftpcli"
 )
 
 const (
@@ -22,16 +22,16 @@ type cmdStl struct {
 	cmdBase
 	files []string
 
-	mapFile map[string]ftputil.Filer
+	mapFile map[string]ftpcli.Filer
 	mapShop map[string]shop
 	mapDrug map[string]drug
 	mapProp map[string][]prop
 }
 
-func newCmdStl() *cmdStl {
+func NewCmdStl() *cmdStl {
 	cmd := &cmdStl{
 		files:   []string{"APT.csv", "SP.csv", "OST.csv"},
-		mapFile: make(map[string]ftputil.Filer, 3),
+		mapFile: make(map[string]ftpcli.Filer, 3),
 		mapShop: make(map[string]shop, 20),
 		mapDrug: make(map[string]drug, 10000),
 		mapProp: make(map[string][]prop, 100000),
@@ -60,7 +60,7 @@ func (c *cmdStl) exec() error {
 }
 
 func (c *cmdStl) downloadCSVs() error {
-	vCh := ftputil.NewFileChan(
+	vCh := ftpcli.NewFileChan(
 		c.flagSRC,
 		nil,
 		false,
@@ -77,7 +77,7 @@ func (c *cmdStl) downloadCSVs() error {
 }
 
 func (c *cmdStl) deleteCSVs() error {
-	return ftputil.Delete(c.flagSRC, c.files...)
+	return ftpcli.Delete(c.flagSRC, c.files...)
 }
 
 func (c *cmdStl) transformCSVs() error {

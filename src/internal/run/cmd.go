@@ -1,4 +1,4 @@
-package cmd
+package run
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"internal/mailutil"
+	"internal/net/mailcli"
 	"internal/version"
 
 	"github.com/google/subcommands"
@@ -23,19 +23,6 @@ const (
 	v1 apiV = iota + 1
 	v2
 )
-
-// Run registers commands in subcommands and execute it
-func Run() int {
-	subcommands.Register(newCmdAve(), "")
-	subcommands.Register(newCmdFoz(), "")
-	subcommands.Register(newCmdBel(), "")
-	subcommands.Register(newCmdA24(), "")
-	subcommands.Register(newCmdStl(), "")
-	subcommands.Register(newCmdA55(), "")
-	subcommands.Register(newCmdTst(), "")
-
-	return int(subcommands.Execute(context.Background()))
-}
 
 type execer interface {
 	exec() error
@@ -269,7 +256,7 @@ func (c *cmdBase) pushGzipV2(r io.Reader, s string) error {
 
 func (c *cmdBase) sendError(err error) error {
 	if c.flagMGn != "" {
-		err = mailutil.Send(
+		err = mailcli.Send(
 			c.flagMGn,
 			c.flagMFm,
 			fmt.Sprintf("ERROR [%s]", c.Name()),

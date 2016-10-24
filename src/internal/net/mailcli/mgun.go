@@ -1,4 +1,4 @@
-package mailutil
+package mailcli
 
 import (
 	"fmt"

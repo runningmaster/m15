@@ -1,4 +1,4 @@
-package cmd
+package run
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"internal/mailutil"
+	"internal/net/mailcli"
 )
 
 // Command DEPRECATED
@@ -15,7 +15,7 @@ type cmdFoz struct {
 	cmdBase
 }
 
-func newCmdFoz() *cmdFoz {
+func NewCmdFoz() *cmdFoz {
 	cmd := &cmdFoz{}
 	cmd.mustInitBase(cmd, "foz", "download and send to skynet gzip(json) files from email")
 	return cmd
@@ -26,7 +26,7 @@ func (c *cmdFoz) exec() error {
 }
 
 func (c *cmdFoz) downloadAndPushGzips() error {
-	vCh := mailutil.NewFileChan(
+	vCh := mailcli.NewFileChan(
 		c.flagSRC,
 		func(name string) bool {
 			return strings.HasPrefix(strings.ToLower(filepath.Ext(name)), ".gz")

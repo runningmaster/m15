@@ -1,4 +1,4 @@
-package cmd
+package run
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"internal/mailutil"
+	"internal/net/mailcli"
 
 	"github.com/CentaurWarchief/dbf"
 )
@@ -25,7 +25,7 @@ type cmdA55 struct {
 	metas map[string]string
 }
 
-func newCmdA55() *cmdA55 {
+func NewCmdA55() *cmdA55 {
 	cmd := &cmdA55{
 		metas: make(map[string]string, 4),
 	}
@@ -52,7 +52,7 @@ func (c *cmdA55) setFlags(f *flag.FlagSet) {
 }
 
 func (c *cmdA55) downloadDBF() error {
-	vCh := mailutil.NewFileChan(
+	vCh := mailcli.NewFileChan(
 		c.flagSRC,
 		func(name string) bool {
 			return strings.HasPrefix(strings.ToLower(filepath.Ext(name)), ".dbf")

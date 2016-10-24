@@ -1,4 +1,4 @@
-package cmd
+package run
 
 import (
 	"bytes"
@@ -12,8 +12,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"internal/ftputil"
-	"internal/ziputil"
+	"internal/archive/ziputil"
+	"internal/net/ftpcli"
 
 	"github.com/CentaurWarchief/dbf"
 	"golang.org/x/text/encoding/charmap"
@@ -60,14 +60,14 @@ type priceOld struct {
 type cmdBel struct {
 	cmdBase
 
-	mapFile map[string]ftputil.Filer
+	mapFile map[string]ftpcli.Filer
 	mapDele map[string][]string // for clean up
 	mapJSON map[string]priceOld
 }
 
-func newCmdBel() *cmdBel {
+func NewCmdBel() *cmdBel {
 	cmd := &cmdBel{
-		mapFile: make(map[string]ftputil.Filer, 100),
+		mapFile: make(map[string]ftpcli.Filer, 100),
 		mapDele: make(map[string][]string, 100),
 		mapJSON: make(map[string]priceOld, 100),
 	}
@@ -97,7 +97,7 @@ func (c *cmdBel) exec() error {
 func (c *cmdBel) downloadZIPs() error {
 	splitFlag := strings.Split(c.flagSRC, ",")
 	for i := range splitFlag {
-		vCh := ftputil.NewFileChan(
+		vCh := ftpcli.NewFileChan(
 			splitFlag[i],
 			nil,
 			true,
@@ -120,7 +120,7 @@ func (c *cmdBel) deleteZIPs() error {
 		if v == nil {
 			continue
 		}
-		return ftputil.Delete(k, v...)
+		return ftpcli.Delete(k, v...)
 	}
 
 	return nil
