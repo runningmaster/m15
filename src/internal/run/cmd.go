@@ -125,7 +125,7 @@ func (c *cmdBase) makeURL(path string) string {
 }
 
 func (c *cmdBase) failFast() error {
-	_, _, _, err := httpcli.Do2xxWithTimeout("GET", c.makeURL("/ping"), c.timeout, nil)
+	_, _, err := httpcli.DoWithTimeoutAndMust2xx("GET", c.makeURL("/ping"), c.timeout, nil)
 	return err
 }
 
@@ -134,9 +134,9 @@ func (c *cmdBase) pullData(url string) (io.Reader, error) {
 		log.Println("pull", url, time.Since(t).String())
 	}(time.Now())
 
-	v, _, _, err := httpcli.Do2xxWithTimeout("GET", url, c.timeout, nil)
+	_, body, err := httpcli.DoWithTimeoutAndMust2xx("GET", url, c.timeout, nil)
 
-	return v, err
+	return body, err
 }
 
 func (c *cmdBase) pushGzip(r io.Reader, s string, v apiV) error {
@@ -159,7 +159,7 @@ func (c *cmdBase) pushGzip(r io.Reader, s string, v apiV) error {
 		hdr = append(hdr, "X-Morion-Skynet-Tag: "+c.flagTag)
 	}
 
-	_, _, _, err := httpcli.Do2xxWithTimeout("POST", url, c.timeout, r)
+	_, _, err := httpcli.DoWithTimeoutAndMust2xx("POST", url, c.timeout, r)
 	if err != nil {
 		return fmt.Errorf("%v: %s", err, s)
 	}

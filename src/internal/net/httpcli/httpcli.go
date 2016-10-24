@@ -26,10 +26,10 @@ func init() {
 	}
 }
 
-func Do2xxWithTimeout(m, url string, t time.Duration, data io.Reader, h ...string) (io.Reader, http.Header, int, error) {
+func DoWithTimeout(m, url string, t time.Duration, data io.Reader, h ...string) (int, http.Header, io.Reader, error) {
 	req, err := http.NewRequest(m, url, data)
 	if err != nil {
-		return nil, nil, 0, err
+		return 0, nil, nil, err
 	}
 
 	var ctx context.Context
@@ -44,21 +44,35 @@ func Do2xxWithTimeout(m, url string, t time.Duration, data io.Reader, h ...strin
 
 	res, err := cli.Do(req)
 	if err != nil {
-		return nil, nil, 0, err
+		return 0, nil, nil, err
 	}
 	defer closeBody(res.Body)
-
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, nil, res.StatusCode, fmt.Errorf("request failed with code %v", res.StatusCode)
-	}
 
 	buf := new(bytes.Buffer)
 	_, err = buf.ReadFrom(res.Body)
 	if err != nil {
-		return nil, nil, 0, err
+		return 0, nil, nil, err
 	}
 
-	return buf, res.Header, res.StatusCode, nil
+	return res.StatusCode, res.Header, buf, nil
+}
+
+func DoWithTimeoutAndMust2xx(m, url string, t time.Duration, data io.Reader, h ...string) (http.Header, io.Reader, error) {
+	code, head, body, err := DoWithTimeout(m, url, t, data, h...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if code < http.StatusOK || code > http.StatusIMUsed {
+		buf := new(bytes.Buffer)
+		_, err = buf.ReadFrom(body)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, nil, fmt.Errorf("request failed with code %d and msg: %s", code, buf.String())
+	}
+
+	return head, body, nil
 }
 
 func closeBody(c io.Closer) {
