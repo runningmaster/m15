@@ -26,16 +26,14 @@ func init() {
 	}
 }
 
-func DoWithTimeout(m, url string, t time.Duration, data io.Reader, h ...string) (int, http.Header, io.Reader, error) {
+func DoWithTimeout(m, url string, d time.Duration, data io.Reader, h ...string) (int, http.Header, io.Reader, error) {
 	req, err := http.NewRequest(m, url, data)
 	if err != nil {
 		return 0, nil, nil, err
 	}
 
-	var ctx context.Context
-	var cancel context.CancelFunc
-	if t > 0 {
-		ctx, cancel = context.WithTimeout(context.Background(), t)
+	if d > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), d)
 		defer cancel()
 		req = req.WithContext(ctx)
 	}
@@ -76,8 +74,12 @@ func DoWithTimeoutAndMust2xx(m, url string, t time.Duration, data io.Reader, h .
 }
 
 func closeBody(c io.Closer) {
-	if c != nil {
-		_ = c.Close()
+	if c == nil {
+		return
+	}
+	err := c.Close()
+	if err != nil {
+		panic(err)
 	}
 }
 
