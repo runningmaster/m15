@@ -138,7 +138,10 @@ func (c *cmdA24) downloadCSVs() error {
 		if v.Error != nil {
 			continue
 		}
-		c.parseRecordList(v.Record)
+		err = c.parseRecordList(v.Record)
+		if err != nil {
+			return err
+		}
 	}
 
 	for k, v := range c.mapShop {
@@ -176,6 +179,7 @@ func (c *cmdA24) transformXML() error {
 }
 
 func (c *cmdA24) transformCSVs() error {
+	var err error
 	var r io.Reader
 	for k, v := range c.mapShop {
 		r = c.mapFile[k]
@@ -187,7 +191,10 @@ func (c *cmdA24) transformCSVs() error {
 			if v.Error != nil {
 				continue
 			}
-			c.parseRecordFile2(k, v.Record)
+			err = c.parseRecordFile2(k, v.Record)
+			if err != nil {
+				return err
+			}
 		}
 		// workaround for json's omitempty
 		v.File = ""
@@ -197,34 +204,45 @@ func (c *cmdA24) transformCSVs() error {
 }
 
 // cvs scheme (list): [0]ID [1]NAME [2]HEAD [3]ADDR [4]CODE [5]FILE
-func (c *cmdA24) parseRecordList(r []string) {
+func (c *cmdA24) parseRecordList(r []string) error {
+	csvLen := 5
+	if len(r) < csvLen {
+		return fmt.Errorf("invalid csv: got %d, want %d", len(r), csvLen)
+	}
+
 	s := shop1{
-		Code:   r[0],
-		Name:   r[1],
-		Head:   r[2],
-		Addr:   r[3],
-		EGRPOU: r[4],
+		Code:   strings.TrimSpace(r[0]),
+		Name:   strings.TrimSpace(r[1]),
+		Head:   strings.TrimSpace(r[2]),
+		Addr:   strings.TrimSpace(r[3]),
+		EGRPOU: strings.TrimSpace(r[4]),
 		File:   c.flagCSV, //r[5],
 	}
 	c.mapShop[s.Code] = s
+	return nil
 }
 
 // cvs scheme (file): [0]Код товара [1]Товар [2]Производитель [3]НДС % [4]Цена без НДС, грн [5]Цена с НДС, грн
-func (c *cmdA24) parseRecordFile(s string, r []string) {
+func (c *cmdA24) parseRecordFile(s string, r []string) error {
+	csvLen := 6
+	if len(r) < csvLen {
+		return fmt.Errorf("invalid csv: got %d, want %d", len(r), csvLen)
+	}
+
 	quant, err := strconv.ParseFloat("1", 64)
 	if err != nil {
-		return
+		return err
 	}
 
 	price, err := strconv.ParseFloat(strings.Replace(r[5], ",", ".", -1), 64)
 	if err != nil {
-		return
+		return err
 	}
 
 	l := c.mapXML[r[0]].URL
 	p := prop1{
-		Code:  r[0],
-		Name:  fmt.Sprintf("%s %s", r[1], r[2]),
+		Code:  strings.TrimSpace(r[0]),
+		Name:  fmt.Sprintf("%s %s", strings.TrimSpace(r[1]), strings.TrimSpace(r[2])),
 		Addr:  l,
 		Link:  l,
 		Quant: quant,
@@ -232,18 +250,24 @@ func (c *cmdA24) parseRecordFile(s string, r []string) {
 	}
 
 	c.mapProp[s] = append(c.mapProp[s], p)
+	return nil
 }
 
 // cvs scheme (file): [0]Код товара [1]Товар [2]Производитель [3]Факт [4]Упаковка [5]Срок годности [6]Классификация товара [7]Рецептурный отпуск [8]АТС-Классификация [9]АТС-Классификация (код)
-func (c *cmdA24) parseRecordFile2(s string, r []string) {
+func (c *cmdA24) parseRecordFile2(s string, r []string) error {
+	csvLen := 3
+	if len(r) < csvLen {
+		return fmt.Errorf("invalid csv: got %d, want %d", len(r), csvLen)
+	}
+
 	quant, err := strconv.ParseFloat("5", 64)
 	if err != nil {
-		return
+		return err
 	}
 
 	v, ok := c.mapXML[r[0]]
 	if !ok {
-		return
+		return err
 	}
 
 	p := prop1{
@@ -256,6 +280,7 @@ func (c *cmdA24) parseRecordFile2(s string, r []string) {
 	}
 
 	c.mapProp[s] = append(c.mapProp[s], p)
+	return nil
 }
 
 func (c *cmdA24) uploadGzipJSONs() error {
