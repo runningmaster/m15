@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"internal/encoding/csvutil"
 	"internal/encoding/txtutil"
@@ -89,17 +90,21 @@ func (c *cmdStl) transformCSVs() error {
 		}
 
 		vCh := csvutil.NewRecordChan(txtutil.Win1251ToUTF8(f), ';', false, 1)
+		var err error
 		for v := range vCh {
 			if v.Error != nil {
 				continue
 			}
 			switch i {
 			case 0:
-				c.parseRecordApt(v.Record)
+				err = c.parseRecordApt(v.Record)
 			case 1:
-				c.parseRecordSp(v.Record)
+				err = c.parseRecordSp(v.Record)
 			case 2:
-				c.parseRecordOst(v.Record)
+				err = c.parseRecordOst(v.Record)
+			}
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -108,10 +113,15 @@ func (c *cmdStl) transformCSVs() error {
 }
 
 // cvs scheme (apt): [0]AID [1]NAME
-func (c *cmdStl) parseRecordApt(r []string) {
+func (c *cmdStl) parseRecordApt(r []string) error {
+	csvLen := 2
+	if len(r) < csvLen {
+		return fmt.Errorf("invalid csv: got %d, want %d", len(r), csvLen)
+	}
+
 	s := shop{
-		ID:   r[0],
-		Name: r[1],
+		ID:   strings.TrimSpace(r[0]),
+		Name: strings.TrimSpace(r[1]),
 		Head: stlHead,
 	}
 
@@ -121,37 +131,49 @@ func (c *cmdStl) parseRecordApt(r []string) {
 	}
 
 	c.mapShop[s.ID] = s
+	return nil
 }
 
 // cvs scheme (sp): [0]CODE [1]NAME [2]IZG [3]STRANA
-func (c *cmdStl) parseRecordSp(r []string) {
+func (c *cmdStl) parseRecordSp(r []string) error {
+	csvLen := 4
+	if len(r) < csvLen {
+		return fmt.Errorf("invalid csv: got %d, want %d", len(r), csvLen)
+	}
+
 	d := drug{
-		ID:   r[0],
-		Name: fmt.Sprintf("%s %s %s", r[1], r[2], r[3]),
+		ID:   strings.TrimSpace(r[0]),
+		Name: fmt.Sprintf("%s %s %s", strings.TrimSpace(r[1]), strings.TrimSpace(r[2]), strings.TrimSpace(r[3])),
 	}
 
 	c.mapDrug[d.ID] = d
+	return nil
 }
 
 // cvs scheme (ost): [0]AID [1]CODE [2]QTTY [3]PRICE
-func (c *cmdStl) parseRecordOst(r []string) {
-	s, ok := c.mapShop[r[0]]
-	if !ok {
-		return
+func (c *cmdStl) parseRecordOst(r []string) error {
+	csvLen := 4
+	if len(r) < csvLen {
+		return fmt.Errorf("invalid csv: got %d, want %d", len(r), csvLen)
 	}
 
-	d, ok := c.mapDrug[r[1]]
+	s, ok := c.mapShop[strings.TrimSpace(r[0])]
 	if !ok {
-		return
+		return fmt.Errorf("shop not found %s", r[0])
 	}
 
-	quant, err := strconv.ParseFloat(r[2], 64)
-	if err != nil {
-		return
+	d, ok := c.mapDrug[strings.TrimSpace(r[1])]
+	if !ok {
+		return fmt.Errorf("drug not found %s", r[1])
 	}
-	price, err := strconv.ParseFloat(r[3], 64)
+
+	quant, err := strconv.ParseFloat(strings.TrimSpace(r[2]), 64)
 	if err != nil {
-		return
+		return err
+	}
+	price, err := strconv.ParseFloat(strings.TrimSpace(r[3]), 64)
+	if err != nil {
+		return err
 	}
 
 	p := prop{
@@ -162,6 +184,7 @@ func (c *cmdStl) parseRecordOst(r []string) {
 	}
 
 	c.mapProp[s.ID] = append(c.mapProp[s.ID], p)
+	return nil
 }
 
 func (c *cmdStl) uploadGzipJSONs() error {

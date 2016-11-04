@@ -147,11 +147,14 @@ func (c *cmdAve) transformCSVs() error {
 			}
 			switch {
 			case s == fileApt:
-				c.parseRecordApt(v.Record)
+				err = c.parseRecordApt(v.Record)
 			case s == fileTov:
-				c.parseRecordTov(v.Record)
+				err = c.parseRecordTov(v.Record)
 			case s == fileOst:
-				c.parseRecordOst(v.Record)
+				err = c.parseRecordOst(v.Record)
+			}
+			if err != nil {
+				return err
 			}
 		}
 		_ = rc.Close()
@@ -160,12 +163,17 @@ func (c *cmdAve) transformCSVs() error {
 }
 
 // cvs scheme (apt): [0]codeapt [1]brendname [2]adressapt [3]regimname
-func (c *cmdAve) parseRecordApt(r []string) {
+func (c *cmdAve) parseRecordApt(r []string) error {
+	csvLen := 3
+	if len(r) < csvLen {
+		return fmt.Errorf("invalid csv: got %d, want %d", len(r), csvLen)
+	}
+
 	s := shop{
-		ID:   r[0],
-		Name: r[1],
+		ID:   strings.TrimSpace(r[0]),
+		Name: strings.TrimSpace(r[1]),
 		Head: aveHead,
-		Addr: r[2],
+		Addr: strings.TrimSpace(r[2]),
 	}
 
 	// special tuning if [1] is empty
@@ -174,37 +182,49 @@ func (c *cmdAve) parseRecordApt(r []string) {
 	}
 
 	c.mapShop[s.ID] = s
+	return nil
 }
 
 // cvs scheme (tov): [0]code [1]barname [2]brand [3]grpname [4]grpcode
-func (c *cmdAve) parseRecordTov(r []string) {
+func (c *cmdAve) parseRecordTov(r []string) error {
+	csvLen := 2
+	if len(r) < csvLen {
+		return fmt.Errorf("invalid csv: got %d, want %d", len(r), csvLen)
+	}
+
 	d := drug{
-		ID:   r[0],
-		Name: r[1],
+		ID:   strings.TrimSpace(r[0]),
+		Name: strings.TrimSpace(r[1]),
 	}
 
 	c.mapDrug[d.ID] = d
+	return nil
 }
 
 // cvs scheme (ost): [0]codegood [1]codeapt [2]qnt [3]pricesale
-func (c *cmdAve) parseRecordOst(r []string) {
-	s, ok := c.mapShop[r[1]]
-	if !ok {
-		return
+func (c *cmdAve) parseRecordOst(r []string) error {
+	csvLen := 4
+	if len(r) < csvLen {
+		return fmt.Errorf("invalid csv: got %d, want %d", len(r), csvLen)
 	}
 
-	d, ok := c.mapDrug[r[0]]
+	s, ok := c.mapShop[strings.TrimSpace(r[1])]
 	if !ok {
-		return
+		return fmt.Errorf("shop not found %s", r[1])
 	}
 
-	quant, err := strconv.ParseFloat(r[2], 64)
-	if err != nil {
-		return
+	d, ok := c.mapDrug[strings.TrimSpace(r[0])]
+	if !ok {
+		return fmt.Errorf("drug not found %s", r[0])
 	}
-	price, err := strconv.ParseFloat(r[3], 64)
+
+	quant, err := strconv.ParseFloat(strings.TrimSpace(r[2]), 64)
 	if err != nil {
-		return
+		return err
+	}
+	price, err := strconv.ParseFloat(strings.TrimSpace(r[3]), 64)
+	if err != nil {
+		return err
 	}
 
 	p := prop{
@@ -215,6 +235,7 @@ func (c *cmdAve) parseRecordOst(r []string) {
 	}
 
 	c.mapProp[s.ID] = append(c.mapProp[s.ID], p)
+	return nil
 }
 
 func (c *cmdAve) uploadGzipJSONs() error {

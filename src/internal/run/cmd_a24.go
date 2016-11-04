@@ -239,7 +239,7 @@ func (c *cmdA24) parseRecordFile(s string, r []string) error {
 		return err
 	}
 
-	l := c.mapXML[r[0]].URL
+	l := c.mapXML[strings.TrimSpace(r[0])].URL
 	p := prop1{
 		Code:  strings.TrimSpace(r[0]),
 		Name:  fmt.Sprintf("%s %s", strings.TrimSpace(r[1]), strings.TrimSpace(r[2])),
@@ -265,14 +265,14 @@ func (c *cmdA24) parseRecordFile2(s string, r []string) error {
 		return err
 	}
 
-	v, ok := c.mapXML[r[0]]
+	v, ok := c.mapXML[strings.TrimSpace(r[0])]
 	if !ok {
 		return err
 	}
 
 	p := prop1{
 		Code:  v.ID,
-		Name:  fmt.Sprintf("%s %s", r[1], r[2]),
+		Name:  fmt.Sprintf("%s %s", strings.TrimSpace(r[1]), strings.TrimSpace(r[2])),
 		Addr:  v.URL,
 		Link:  v.URL,
 		Quant: quant,
