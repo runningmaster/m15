@@ -130,20 +130,15 @@ func (c *cmdBase) failFast() error {
 }
 
 func (c *cmdBase) pullData(url string) (io.Reader, error) {
-	defer func(t time.Time) {
-		log.Println("pull", url, time.Since(t).String())
-	}(time.Now())
-
+	t := time.Now()
 	_, body, err := httpcli.DoWithTimeoutAndMust2xx("GET", url, c.timeout, nil)
 
+	log.Println("pull", url, time.Since(t).String())
 	return body, err
 }
 
 func (c *cmdBase) pushGzip(r io.Reader, s string, v apiV) error {
-	defer func(t time.Time) {
-		log.Println("push", s, time.Since(t).String())
-	}(time.Now())
-
+	t := time.Now()
 	var url string
 	var hdr []string
 	hdr = append(hdr, "Content-Encoding: application/x-gzip")
@@ -159,11 +154,12 @@ func (c *cmdBase) pushGzip(r io.Reader, s string, v apiV) error {
 		hdr = append(hdr, "X-Morion-Skynet-Tag: "+c.flagTag)
 	}
 
-	_, _, err := httpcli.DoWithTimeoutAndMust2xx("POST", url, c.timeout, r)
+	_, _, err := httpcli.DoWithTimeoutAndMust2xx("POST", url, c.timeout, r, hdr...)
 	if err != nil {
 		return fmt.Errorf("%v: %s", err, s)
 	}
 
+	log.Println("push", s, time.Since(t).String())
 	return nil
 }
 
