@@ -220,11 +220,13 @@ func (c *cmdAve) parseRecordOst(r []string) error {
 
 	quant, err := strconv.ParseFloat(strings.TrimSpace(r[2]), 64)
 	if err != nil {
-		return err
+		fmt.Println(err, r[0], r[1], r[2], r[3])
+		//return err
 	}
 	price, err := strconv.ParseFloat(strings.TrimSpace(r[3]), 64)
 	if err != nil {
-		return err
+		fmt.Println(err, r[0], r[1], r[2], r[3])
+		//return err
 	}
 
 	p := prop{
