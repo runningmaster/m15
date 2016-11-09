@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -12,7 +13,6 @@ import (
 	"internal/version"
 
 	"github.com/google/subcommands"
-	"golang.org/x/net/context"
 )
 
 type apiV int
