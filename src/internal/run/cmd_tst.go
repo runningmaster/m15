@@ -2,7 +2,7 @@ package run
 
 import (
 	"flag"
-	"fmt"
+	"log"
 )
 
 type cmdTst struct {
@@ -16,10 +16,10 @@ func NewCmdTst() *cmdTst {
 }
 
 func (c *cmdTst) setFlags(f *flag.FlagSet) {
-	fmt.Println("test setFlag()")
+	log.Println("test setFlag()")
 }
 
 func (c *cmdTst) exec() error {
-	fmt.Println("test exec()")
+	log.Println("test exec()")
 	return nil
 }
