@@ -41,10 +41,12 @@ func DoWithTimeout(m, url string, d time.Duration, data io.Reader, h ...string) 
 	makeHeader(req.Header, h...)
 
 	res, err := cli.Do(req)
+	if res != nil {
+		defer closeBody(res.Body)
+	}
 	if err != nil {
 		return 0, nil, nil, err
 	}
-	defer closeBody(res.Body)
 
 	buf := new(bytes.Buffer)
 	_, err = buf.ReadFrom(res.Body)
