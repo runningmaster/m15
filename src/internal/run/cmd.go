@@ -82,7 +82,7 @@ func (c *cmdBase) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&c.flagTag, "tag", "", "service tag")
 
 	f.StringVar(&c.flagMGn, "mgn", "", "mailgun service mail://api:key@box.mailgun.org")
-	f.StringVar(&c.flagMFm, "mfm", "noreplay@example.com", "Mailgun from")
+	f.StringVar(&c.flagMFm, "mfm", "noreplay@example.com", "mailgun from")
 	f.StringVar(&c.flagMTo, "mto", "", "mailgun to")
 
 	if i, ok := c.cmd.(flager); ok {

@@ -11,7 +11,7 @@ type cmdTst struct {
 
 func NewCmdTst() *cmdTst {
 	cmd := &cmdTst{}
-	cmd.mustInitBase(cmd, "tst", "test command")
+	cmd.mustInitBase(cmd, "test", "test command")
 	return cmd
 }
 
