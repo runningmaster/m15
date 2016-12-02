@@ -24,10 +24,11 @@ const (
 
 // ServerConn represents the connection to a remote FTP server.
 type ServerConn struct {
-	conn     *textproto.Conn
-	host     string
-	timeout  time.Duration
-	features map[string]string
+	conn        *textproto.Conn
+	host        string
+	timeout     time.Duration
+	features    map[string]string
+	disableEPSV bool
 }
 
 // Entry describes a file and is returned by List().
@@ -219,17 +220,26 @@ func (c *ServerConn) pasv() (port int, err error) {
 	return
 }
 
+// getDataConnPort returns a port for a new data connection
+// it uses the best available method to do so
+func (c *ServerConn) getDataConnPort() (int, error) {
+	if !c.disableEPSV {
+		if port, err := c.epsv(); err == nil {
+			return port, nil
+		}
+
+		// if there is an error, disable EPSV for the next attempts
+		c.disableEPSV = true
+	}
+
+	return c.pasv()
+}
+
 // openDataConn creates a new FTP data connection.
 func (c *ServerConn) openDataConn() (net.Conn, error) {
-	var (
-		port int
-		err  error
-	)
-
-	if port, err = c.epsv(); err != nil {
-		if port, err = c.pasv(); err != nil {
-			return nil, err
-		}
+	port, err := c.getDataConnPort()
+	if err != nil {
+		return nil, err
 	}
 
 	return net.DialTimeout("tcp", net.JoinHostPort(c.host, strconv.Itoa(port)), c.timeout)
@@ -257,6 +267,7 @@ func (c *ServerConn) cmdDataConnFrom(offset uint64, format string, args ...inter
 	if offset != 0 {
 		_, _, err := c.cmd(StatusRequestFilePending, "REST %d", offset)
 		if err != nil {
+			conn.Close()
 			return nil, err
 		}
 	}
@@ -325,6 +336,22 @@ func parseRFC3659ListLine(line string) (*Entry, error) {
 	return e, nil
 }
 
+// parse file or folder name with multiple spaces
+func parseLsListLineName(line string, fields []string, offset int) string {
+	if offset < 1 {
+		return ""
+	}
+
+	match := fields[offset-1]
+	index := strings.Index(line, match)
+	if index == -1 {
+		return ""
+	}
+
+	index += len(match)
+	return strings.TrimSpace(line[index:])
+}
+
 // parseLsListLine parses a directory line in a format based on the output of
 // the UNIX ls command.
 func parseLsListLine(line string) (*Entry, error) {
@@ -384,7 +411,11 @@ func parseLsListLine(line string) (*Entry, error) {
 		return nil, err
 	}
 
-	e.Name = strings.Join(fields[8:], " ")
+	e.Name = parseLsListLineName(line, fields, 8)
+	if len(e.Name) == 0 {
+		e.Name = strings.Join(fields[8:], " ")
+	}
+
 	return e, nil
 }
 
