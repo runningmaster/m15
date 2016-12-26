@@ -1,17 +1,19 @@
 package mailgun
 
 import (
+	"net/http"
 	"testing"
+
+	"github.com/facebookgo/ensure"
 )
 
 func TestGetDomains(t *testing.T) {
-	domain := reqEnv(t, "MG_DOMAIN")
-	apiKey := reqEnv(t, "MG_API_KEY")
-	mg := NewMailgun(domain, apiKey, "")
+	mg, err := NewMailgunFromEnv()
+	ensure.Nil(t, err)
+
 	n, domains, err := mg.GetDomains(DefaultLimit, DefaultSkip)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ensure.Nil(t, err)
+
 	t.Logf("TestGetDomains: %d domains retrieved\n", n)
 	for _, d := range domains {
 		t.Logf("TestGetDomains: %#v\n", d)
@@ -19,17 +21,14 @@ func TestGetDomains(t *testing.T) {
 }
 
 func TestGetSingleDomain(t *testing.T) {
-	domain := reqEnv(t, "MG_DOMAIN")
-	apiKey := reqEnv(t, "MG_API_KEY")
-	mg := NewMailgun(domain, apiKey, "")
+	mg, err := NewMailgunFromEnv()
+	ensure.Nil(t, err)
+
 	_, domains, err := mg.GetDomains(DefaultLimit, DefaultSkip)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ensure.Nil(t, err)
+
 	dr, rxDnsRecords, txDnsRecords, err := mg.GetSingleDomain(domains[0].Name)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ensure.Nil(t, err)
 
 	t.Logf("TestGetSingleDomain: %#v\n", dr)
 	for _, rxd := range rxDnsRecords {
@@ -41,37 +40,25 @@ func TestGetSingleDomain(t *testing.T) {
 }
 
 func TestGetSingleDomainNotExist(t *testing.T) {
-	domain := reqEnv(t, "MG_DOMAIN")
-	apiKey := reqEnv(t, "MG_API_KEY")
-	mg := NewMailgun(domain, apiKey, "")
-	_, _, _, err := mg.GetSingleDomain(randomString(32, "com.edu.org.") + ".com")
+	mg, err := NewMailgunFromEnv()
+	ensure.Nil(t, err)
+	_, _, _, err = mg.GetSingleDomain(randomString(32, "com.edu.org.") + ".com")
 	if err == nil {
 		t.Fatal("Did not expect a domain to exist")
 	}
 	ure, ok := err.(*UnexpectedResponseError)
-	if !ok {
-		t.Fatal("Expected UnexpectedResponseError")
-	}
-	if ure.Actual != 404 {
-		t.Fatalf("Expected 404 response code; got %d", ure.Actual)
-	}
+	ensure.True(t, ok)
+	ensure.DeepEqual(t, ure.Actual, http.StatusNotFound)
 }
 
 func TestAddDeleteDomain(t *testing.T) {
+	mg, err := NewMailgunFromEnv()
+	ensure.Nil(t, err)
+
 	// First, we need to add the domain.
-	domain := reqEnv(t, "MG_DOMAIN")
-	apiKey := reqEnv(t, "MG_API_KEY")
-	mg := NewMailgun(domain, apiKey, "")
 	randomDomainName := randomString(16, "DOMAIN") + ".example.com"
 	randomPassword := randomString(16, "PASSWD")
-	err := mg.CreateDomain(randomDomainName, randomPassword, Tag, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	ensure.Nil(t, mg.CreateDomain(randomDomainName, randomPassword, Tag, false))
 	// Next, we delete it.
-	err = mg.DeleteDomain(randomDomainName)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ensure.Nil(t, mg.DeleteDomain(randomDomainName))
 }

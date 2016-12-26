@@ -2,80 +2,76 @@ package mailgun
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 	"testing"
+
+	"github.com/facebookgo/ensure"
 )
 
 func TestGetBounces(t *testing.T) {
-	domain := reqEnv(t, "MG_DOMAIN")
-	apiKey := reqEnv(t, "MG_API_KEY")
-	mg := NewMailgun(domain, apiKey, "")
+	mg, err := NewMailgunFromEnv()
+	ensure.Nil(t, err)
+
 	n, bounces, err := mg.GetBounces(-1, -1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != len(bounces) {
-		t.Fatalf("Expected length of bounces %d to equal returned length %d", len(bounces), n)
-	}
+	ensure.Nil(t, err)
+	ensure.DeepEqual(t, n, len(bounces))
 }
 
 func TestGetSingleBounce(t *testing.T) {
 	domain := reqEnv(t, "MG_DOMAIN")
-	apiKey := reqEnv(t, "MG_API_KEY")
-	mg := NewMailgun(domain, apiKey, "")
-	exampleEmail := fmt.Sprintf("%s@%s", randomString(64, ""), domain)
-	_, err := mg.GetSingleBounce(exampleEmail)
-	if err == nil {
-		t.Fatal("Did not expect a bounce to exist")
-	}
+	mg, err := NewMailgunFromEnv()
+	ensure.Nil(t, err)
+
+	exampleEmail := fmt.Sprintf("%s@%s", strings.ToLower(randomString(64, "")), domain)
+	_, err = mg.GetSingleBounce(exampleEmail)
+	ensure.NotNil(t, err)
+
 	ure, ok := err.(*UnexpectedResponseError)
-	if !ok {
-		t.Fatal("Expected UnexpectedResponseError")
-	}
-	if ure.Actual != 404 {
-		t.Fatalf("Expected 404 response code; got %d", ure.Actual)
-	}
+	ensure.True(t, ok)
+	ensure.DeepEqual(t, ure.Actual, http.StatusNotFound)
 }
 
 func TestAddDelBounces(t *testing.T) {
 	domain := reqEnv(t, "MG_DOMAIN")
-	apiKey := reqEnv(t, "MG_API_KEY")
-	mg := NewMailgun(domain, apiKey, "")
+	mg, err := NewMailgunFromEnv()
+	ensure.Nil(t, err)
 
 	// Compute an e-mail address for our domain.
-
-	exampleEmail := fmt.Sprintf("baz@%s", domain)
+	exampleEmail := fmt.Sprintf("%s@%s", strings.ToLower(randomString(8, "bounce")), domain)
 
 	// First, basic sanity check.
 	// Fail early if we have bounces for a fictitious e-mail address.
 
 	n, _, err := mg.GetBounces(-1, -1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ensure.Nil(t, err)
 	// Add the bounce for our address.
 
 	err = mg.AddBounce(exampleEmail, "550", "TestAddDelBounces-generated error")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ensure.Nil(t, err)
 
 	// We should now have one bounce listed when we query the API.
 
 	n, bounces, err := mg.GetBounces(-1, -1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ensure.Nil(t, err)
 	if n == 0 {
 		t.Fatal("Expected at least one bounce for this domain.")
 	}
-	if bounces[0].Address != exampleEmail {
-		t.Fatalf("Expected bounce for address %s; got %s", exampleEmail, bounces[0].Address)
+
+	found := 0
+	for _, bounce := range bounces {
+		t.Logf("Bounce Address: %s\n", bounce.Address)
+		if bounce.Address == exampleEmail {
+			found++
+		}
+	}
+
+	if found == 0 {
+		t.Fatalf("Expected bounce for address %s in list of bounces", exampleEmail)
 	}
 
 	bounce, err := mg.GetSingleBounce(exampleEmail)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ensure.Nil(t, err)
 	if bounce.CreatedAt == "" {
 		t.Fatalf("Expected at least one bounce for %s", exampleEmail)
 	}
@@ -83,22 +79,25 @@ func TestAddDelBounces(t *testing.T) {
 	// Delete it.  This should put us back the way we were.
 
 	err = mg.DeleteBounce(exampleEmail)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ensure.Nil(t, err)
 
 	// Make sure we're back to the way we were.
 
-	n, _, err = mg.GetBounces(-1, -1)
-	if err != nil {
-		t.Fatal(err)
+	n, bounces, err = mg.GetBounces(-1, -1)
+	ensure.Nil(t, err)
+
+	found = 0
+	for _, bounce := range bounces {
+		t.Logf("Bounce Address: %s\n", bounce.Address)
+		if bounce.Address == exampleEmail {
+			found++
+		}
 	}
-	if n > 0 {
-		t.Fatal("Expected no bounces for what should be a clean domain.")
+
+	if found != 0 {
+		t.Fatalf("Expected no bounce for address %s in list of bounces", exampleEmail)
 	}
 
 	_, err = mg.GetSingleBounce(exampleEmail)
-	if err == nil {
-		t.Fatalf("Expected no bounces for %s", exampleEmail)
-	}
+	ensure.NotNil(t, err)
 }
