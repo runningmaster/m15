@@ -112,7 +112,7 @@ const (
 	bouncesEndpoint         = "bounces"
 	statsEndpoint           = "stats"
 	domainsEndpoint         = "domains"
-	deleteTagEndpoint       = "tags"
+	tagsEndpoint            = "tags"
 	campaignsEndpoint       = "campaigns"
 	eventsEndpoint          = "events"
 	credentialsEndpoint     = "credentials"
@@ -146,7 +146,9 @@ type Mailgun interface {
 	AddBounce(address, code, error string) error
 	DeleteBounce(address string) error
 	GetStats(limit int, skip int, startDate *time.Time, event ...string) (int, []Stat, error)
+	GetTag(tag string) (TagItem, error)
 	DeleteTag(tag string) error
+	ListTags(*TagOptions) *TagIterator
 	GetDomains(limit, skip int) (int, []Domain, error)
 	GetSingleDomain(domain string) (Domain, []DNSRecord, []DNSRecord, error)
 	CreateDomain(name string, smtpPassword string, spamAction string, wildcard bool) error
@@ -181,6 +183,7 @@ type Mailgun interface {
 	DeleteWebhook(kind string) error
 	GetWebhookByType(kind string) (string, error)
 	UpdateWebhook(kind, url string) error
+	VerifyWebhookRequest(req *http.Request) (verified bool, err error)
 	GetLists(limit, skip int, filter string) (int, []List, error)
 	CreateList(List) (List, error)
 	DeleteList(string) error
@@ -195,6 +198,8 @@ type Mailgun interface {
 	NewMessage(from, subject, text string, to ...string) *Message
 	NewMIMEMessage(body io.ReadCloser, to ...string) *Message
 	NewEventIterator() *EventIterator
+	ListEvents(*EventsOptions) *EventIterator
+	PollEvents(*EventsOptions) *EventPoller
 	SetAPIBase(url string)
 }
 
@@ -206,6 +211,7 @@ type MailgunImpl struct {
 	apiKey       string
 	publicApiKey string
 	client       *http.Client
+	baseURL      string
 }
 
 // NewMailGun creates a new client instance.
