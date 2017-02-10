@@ -1,4 +1,4 @@
-//go:generate go run gen.go
+//go:generate go run version_generator.go
 
 package version
 
