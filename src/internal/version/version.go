@@ -9,9 +9,16 @@ import (
 	"strings"
 )
 
+const (
+	major      = 0
+	minor      = 3
+	patch      = 0
+	prerelease = ""
+)
+
 // String returns the version according to http://semver.org/
 func String() string {
-	v := fmt.Sprintf("%d.%d.%d-%s", Major, Minor, Patch, PreRelease)
+	v := fmt.Sprintf("%d.%d.%d-%s", major, minor, patch, prerelease)
 	if strings.HasSuffix(v, "-") {
 		return v[:len(v)-1]
 	}
@@ -23,7 +30,7 @@ func WithBuildInfo() string {
 	return fmt.Sprintf("%s+%s.%s", String(), BuildTime, GitCommit)
 }
 
-// FIXME (for testing golint)
+// AppName return application name
 func AppName() string {
 	return filepath.Base(os.Args[0])
 }

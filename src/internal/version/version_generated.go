@@ -6,20 +6,20 @@ package version
 
 const (
 	// Major version when you make incompatible API changes.
-	Major = 0
+	Major = major
 
 	// Minor version when you add functionality in a backwards-compatible manner.
-	Minor = 2
+	Minor = minor
 
 	// Patch version when you make backwards-compatible bug fixes.
-	Patch = 0
+	Patch = patch
 
 	// PreRelease version may be denoted by appending a hyphen and a series of dot separated identifiers immediately following the patch version.
-	PreRelease = ""
+	PreRelease = prerelease
 
 	// BuildTime is build metadata and it may be denoted by appending a plus sign and a series of dot separated identifiers immediately following the patch or pre-release version.
-	BuildTime = "20170210194126"
+	BuildTime = "20170212190838"
 
 	// GitCommit is build metadata and it may be denoted by appending a plus sign and a series of dot separated identifiers immediately following the patch or pre-release version.
-	GitCommit = "8bc4b6f3"
+	GitCommit = "6c86674b"
 )
