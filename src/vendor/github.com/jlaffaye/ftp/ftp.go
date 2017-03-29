@@ -1,4 +1,6 @@
 // Package ftp implements a FTP client as described in RFC 959.
+//
+// A textproto.Error is returned for errors at the protocol level.
 package ftp
 
 import (
@@ -23,6 +25,7 @@ const (
 )
 
 // ServerConn represents the connection to a remote FTP server.
+// It should be protected from concurrent accesses.
 type ServerConn struct {
 	// Do not use EPSV mode
 	DisableEPSV bool
@@ -184,6 +187,13 @@ func (c *ServerConn) setUTF8() error {
 	code, message, err := c.cmd(-1, "OPTS UTF8 ON")
 	if err != nil {
 		return err
+	}
+
+	// The ftpd "filezilla-server" has FEAT support for UTF8, but always returns
+	// "202 UTF8 mode is always enabled. No need to send this command." when
+	// trying to use it. That's OK
+	if code == StatusCommandNotImplemented {
+		return nil
 	}
 
 	if code != StatusCommandOK {
@@ -405,6 +415,16 @@ func (c *ServerConn) CurrentDir() (string, error) {
 	}
 
 	return msg[start+1 : end], nil
+}
+
+// FileSize issues a SIZE FTP command, which Returns the size of the file
+func (c *ServerConn) FileSize(path string) (int64, error) {
+	_, msg, err := c.cmd(StatusFile, "SIZE %s", path)
+	if err != nil {
+		return 0, err
+	}
+
+	return strconv.ParseInt(msg, 10, 64)
 }
 
 // Retr issues a RETR FTP command to fetch the specified file from the remote
