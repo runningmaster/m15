@@ -52,6 +52,7 @@ func newFTP(addr string) (*ftp.ServerConn, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.DisableEPSV = true // passive mode
 
 	err = c.Login(user, pass)
 	if err != nil {
@@ -68,7 +69,7 @@ func skipFile(e *ftp.Entry, nameOK func(string) bool) bool {
 	return badType || badSize || badName
 }
 
-func copyFile(dst io.Writer, src io.ReadCloser) error {
+func copyFileAndClose(dst io.Writer, src io.ReadCloser) error {
 	defer func() { _ = src.Close() }()
 	_, err := io.Copy(dst, src)
 	return err
@@ -148,7 +149,7 @@ func NewFileChan(addr string, nameOK func(string) bool, cleanup bool) <-chan str
 			}
 
 			b = new(bytes.Buffer)
-			err = copyFile(b, r)
+			err = copyFileAndClose(b, r)
 			if err != nil {
 				goto fail
 			}
