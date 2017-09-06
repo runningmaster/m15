@@ -47,8 +47,9 @@ type Entry struct {
 
 // Response represents a data-connection
 type Response struct {
-	conn net.Conn
-	c    *ServerConn
+	conn   net.Conn
+	c      *ServerConn
+	closed bool
 }
 
 // Connect is an alias to Dial, for backward compatibility
@@ -337,7 +338,7 @@ func (c *ServerConn) NameList(path string) (entries []string, err error) {
 		return
 	}
 
-	r := &Response{conn, c}
+	r := &Response{conn: conn, c: c}
 	defer r.Close()
 
 	scanner := bufio.NewScanner(r)
@@ -368,7 +369,7 @@ func (c *ServerConn) List(path string) (entries []*Entry, err error) {
 		return
 	}
 
-	r := &Response{conn, c}
+	r := &Response{conn: conn, c: c}
 	defer r.Close()
 
 	scanner := bufio.NewScanner(r)
@@ -445,7 +446,7 @@ func (c *ServerConn) RetrFrom(path string, offset uint64) (*Response, error) {
 		return nil, err
 	}
 
-	return &Response{conn, c}, nil
+	return &Response{conn: conn, c: c}, nil
 }
 
 // Stor issues a STOR FTP command to store a file to the remote FTP server.
@@ -495,6 +496,41 @@ func (c *ServerConn) Delete(path string) error {
 	return err
 }
 
+// RemoveDirRecur deletes a non-empty folder recursively using
+// RemoveDir and Delete
+func (c *ServerConn) RemoveDirRecur(path string) error {
+	err := c.ChangeDir(path)
+	if err != nil {
+		return err
+	}
+	currentDir, err := c.CurrentDir()
+	if err != nil {
+		return err
+	}
+	entries, err := c.List(currentDir)
+	for _, entry := range entries {
+		if entry.Name != ".." && entry.Name != "." {
+			if entry.Type == EntryTypeFolder {
+				err = c.RemoveDirRecur(currentDir + "/" + entry.Name)
+				if err != nil {
+					return err
+				}
+			} else {
+				err = c.Delete(entry.Name)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	err = c.ChangeDirToParent()
+	if err != nil {
+		return err
+	}
+	err = c.RemoveDir(currentDir)
+	return err
+}
+
 // MakeDir issues a MKD FTP command to create the specified directory on the
 // remote FTP server.
 func (c *ServerConn) MakeDir(path string) error {
@@ -536,12 +572,17 @@ func (r *Response) Read(buf []byte) (int, error) {
 }
 
 // Close implements the io.Closer interface on a FTP data connection.
+// After the first call, Close will do nothing and return nil.
 func (r *Response) Close() error {
+	if r.closed {
+		return nil
+	}
 	err := r.conn.Close()
 	_, _, err2 := r.c.conn.ReadResponse(StatusClosingDataConnection)
 	if err2 != nil {
 		err = err2
 	}
+	r.closed = true
 	return err
 }
 
