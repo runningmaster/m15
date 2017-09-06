@@ -145,7 +145,7 @@ func (c *cmdA24) downloadCSVs() error {
 	}
 
 	for k, v := range c.mapShop {
-		r, err = c.pullData("http://" + v.File)
+		r, err = c.pullData("https://" + v.File)
 		if err != nil {
 			log.Println(c.name, v.File)
 			//return err
