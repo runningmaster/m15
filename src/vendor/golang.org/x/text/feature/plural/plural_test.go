@@ -6,6 +6,7 @@ package plural
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -27,6 +28,8 @@ func TestGetIntApprox(t *testing.T) {
 		{"123", 0, 2, 2, 12},
 		{"123", 3, 4, 2, 0},
 		{"12345", 3, 4, 2, 4},
+		{"40", 0, 1, 2, 4},
+		{"1", 0, 7, 2, big},
 
 		{"123", 0, 5, 2, big},
 		{"123", 0, 5, 3, big},
@@ -65,6 +68,25 @@ func mkDigits(s string) []byte {
 	return b
 }
 
+func TestValidForms(t *testing.T) {
+	testCases := []struct {
+		tag  language.Tag
+		want []Form
+	}{
+		{language.AmericanEnglish, []Form{Other, One}},
+		{language.Portuguese, []Form{Other, One}},
+		{language.Latvian, []Form{Other, Zero, One}},
+		{language.Arabic, []Form{Other, Zero, One, Two, Few, Many}},
+		{language.Russian, []Form{Other, One, Few, Many}},
+	}
+	for _, tc := range testCases {
+		got := validForms(cardinal, tc.tag)
+		if !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("validForms(%v): got %v; want %v", tc.tag, got, tc.want)
+		}
+	}
+}
+
 func TestOrdinal(t *testing.T) {
 	testPlurals(t, Ordinal, ordinalTests)
 }
@@ -94,7 +116,7 @@ func testPlurals(t *testing.T, p *Rules, testCases []pluralTest) {
 						for i := range digits {
 							digits[i] -= '0'
 						}
-						if f := p.MatchDigits(tag, digits, 0, 0); f != Form(tc.form) {
+						if f := p.MatchDigits(tag, digits, len(digits), 0); f != Form(tc.form) {
 							t.Errorf("MatchDigits: got %v; want %v", f, Form(tc.form))
 						}
 					})
@@ -119,14 +141,25 @@ func testPlurals(t *testing.T, p *Rules, testCases []pluralTest) {
 					num := fmt.Sprintf("%[1]d.%0[3]*[2]d", n/m, n%m, scale)
 					name := fmt.Sprintf("%s:dec(%s)", loc, num)
 					t.Run(name, func(t *testing.T) {
+						ff := n % m
+						tt := ff
+						w := scale
+						for tt > 0 && tt%10 == 0 {
+							w--
+							tt /= 10
+						}
+						if f := p.MatchPlural(tag, n/m, scale, w, ff, tt); f != Form(tc.form) {
+							t.Errorf("MatchPlural: got %v; want %v", f, Form(tc.form))
+						}
 						if f := p.matchComponents(tag, n/m, n%m, scale); f != Form(tc.form) {
 							t.Errorf("matchComponents: got %v; want %v", f, Form(tc.form))
 						}
+						exp := strings.IndexByte(num, '.')
 						digits := []byte(strings.Replace(num, ".", "", 1))
 						for i := range digits {
 							digits[i] -= '0'
 						}
-						if f := p.MatchDigits(tag, digits, -scale, scale); f != Form(tc.form) {
+						if f := p.MatchDigits(tag, digits, exp, scale); f != Form(tc.form) {
 							t.Errorf("MatchDigits: got %v; want %v", f, Form(tc.form))
 						}
 					})
